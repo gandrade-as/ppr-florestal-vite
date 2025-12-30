@@ -1,13 +1,16 @@
-import { Target } from "lucide-react";
+import { Search, Target } from "lucide-react";
 import { useMyGoals } from "@/hooks/useGoals";
 
 // UI Components
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GoalCard } from "@/components/GoalCard";
+import { useState } from "react";
+import { Input } from "@/components/ui/input";
 
 export default function GoalsPage() {
   const { data: goals, isLoading, isError } = useMyGoals();
+
+  const [searchTerm, setSearchTerm] = useState("");
 
   if (isLoading) {
     return <GoalsSkeleton />;
@@ -16,6 +19,10 @@ export default function GoalsPage() {
   if (isError) {
     return <div className="p-4 text-red-500">Erro ao carregar suas metas.</div>;
   }
+
+  const filteredGoals = goals?.filter((goal) =>
+    goal.title.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -27,14 +34,25 @@ export default function GoalsPage() {
             Acompanhe o progresso das metas sob sua responsabilidade.
           </p>
         </div>
+
+        <div className="relative w-full md:w-75">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Buscar pelo título..."
+            className="pl-9 bg-background" // pl-9 dá espaço para o ícone
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
       </div>
 
       {/* Grid de Metas */}
-      {goals?.length === 0 ? (
+      {filteredGoals?.length === 0 ? (
         <EmptyState />
       ) : (
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {goals?.map((goal) => (
+          {filteredGoals?.map((goal) => (
             <GoalCard key={goal.id} goal={goal} />
           ))}
         </div>
@@ -72,10 +90,8 @@ function EmptyState() {
       </div>
       <h3 className="mt-4 text-lg font-semibold">Nenhuma meta encontrada</h3>
       <p className="mb-4 text-center text-sm text-muted-foreground max-w-sm">
-        Você ainda não tem metas vinculadas ao seu perfil. Crie uma nova meta
-        para começar a acompanhar.
+        Você ainda não tem esse tipo de meta vinculada ao seu perfil.
       </p>
-      <Button variant="outline">Criar Primeira Meta</Button>
     </div>
   );
 }
