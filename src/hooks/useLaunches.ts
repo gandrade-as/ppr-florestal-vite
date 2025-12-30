@@ -56,8 +56,9 @@ export function useCreateLaunch() {
       queryClient.invalidateQueries({
         queryKey: ["launches", variables.goalId],
       });
-      // Opcional: Atualizar também o progresso da meta na lista pai?
       queryClient.invalidateQueries({ queryKey: ["launcher-goals"] });
+      queryClient.invalidateQueries({ queryKey: ["launches-pending"] });
+      queryClient.invalidateQueries({ queryKey: ["launches"] });
     },
   });
 }
@@ -71,6 +72,9 @@ export function useUpdateLaunch() {
       queryClient.invalidateQueries({
         queryKey: ["launches", variables.goalId],
       });
+      queryClient.invalidateQueries({ queryKey: ["launcher-goals"] });
+      queryClient.invalidateQueries({ queryKey: ["launches-pending"] });
+      queryClient.invalidateQueries({ queryKey: ["launches"] });
     },
   });
 }

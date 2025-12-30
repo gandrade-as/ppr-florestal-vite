@@ -1,195 +1,268 @@
-import type { Launch, PendingLaunch } from "@/types/goal";
+// src/mocks/handlers.ts
 import { http, HttpResponse, delay } from "msw";
+import type { Goal, Launch, PendingLaunch } from "@/types/goal";
 
-// --- BANCO DE DADOS EM MEMÓRIA ---
-// DICA: Adicionei alguns dados iniciais para você ver a lista funcionando logo de cara
-const launchesDB: Record<string, any[]> = {
+// ===========================================================================
+// 1. BANCO DE DADOS EM MEMÓRIA (Persiste durante a sessão do navegador)
+// ===========================================================================
+
+// Mock Inicial de Metas
+const goalsDB: Goal[] = [
+  {
+    id: "501",
+    title: "Faturamento Q3",
+    description: "Meta financeira crítica para o trimestre.",
+    status: "in_progress",
+    priority: "high",
+    progress: 45,
+    deadline: "2024-12-31T00:00:00Z",
+    frequency: "mensal",
+    inputType: "numeric",
+    levels: [
+      { targetValue: 400000, percentage: 20 },
+      { targetValue: 800000, percentage: 60 },
+      { targetValue: 1000000, percentage: 100 },
+    ],
+    creatorId: "uid-gestor", // ID simulado do gestor
+    creatorName: "Gabriel Gestor",
+    responsibleId: "uid-gestor",
+    responsibleName: "Gabriel Gestor",
+    launcherId: "uid-gestor",
+  },
+  {
+    id: "601",
+    title: "Obter Licença Ambiental",
+    description: "A licença deve ser emitida e protocolada junto ao órgão.",
+    status: "pending",
+    priority: "high",
+    progress: 0,
+    deadline: "2024-10-15T00:00:00Z",
+    frequency: "semestral",
+    inputType: "options",
+    levels: [
+      { targetValue: "Não", percentage: 0 },
+      { targetValue: "Sim", percentage: 100 },
+    ],
+    creatorId: "uid-gestor",
+    creatorName: "Gabriel Gestor",
+    responsibleId: "uid-gestor",
+    responsibleName: "Gabriel Gestor",
+    launcherId: "uid-gestor",
+  },
+];
+
+// Mock Inicial de Lançamentos (Vinculados aos IDs das metas acima)
+const launchesDB: Record<string, Launch[]> = {
   "501": [
     {
-      id: "mock-init-1",
+      id: "launch-001",
       date: "2024-08-20T10:00:00Z",
       value: 200000,
-      note: "Lançamento inicial mockado",
-      evidenceUrl: "https://google.com",
+      note: "Lançamento inicial consolidado.",
+      evidenceUrl: "https://drive.google.com/file/d/exemplo",
       status: "approved",
       authorName: "Sistema",
       createdAt: "2024-08-20T10:00:00Z",
+    },
+    {
+      id: "launch-002",
+      date: "2024-08-25T14:00:00Z",
+      value: 55000,
+      note: "Faturamento parcial da semana (Aguardando análise).",
+      evidenceUrl: "https://comprovante.com/pdf",
+      status: "pending", // ITEM PENDENTE PARA TESTAR AUDITORIA
+      authorName: "Gabriel Gestor",
+      createdAt: "2024-08-25T14:00:00Z",
     },
   ],
   "601": [],
 };
 
-// Helper para simular JOIN de tabelas (Lançamento + Meta)
-const getGoalById = (id: string) => {
-  const goals: Record<string, any> = {
-    "501": {
-      title: "Faturamento Q3",
-      inputType: "numeric",
-      responsibleName: "João Vendedor",
-    },
-    "601": {
-      title: "Obter Licença Ambiental",
-      inputType: "options",
-      responsibleName: "Maria Engenheira",
-    },
-  };
-  return (
-    goals[id] || {
-      title: "Meta Desconhecida",
-      inputType: "numeric",
-      responsibleName: "Desconhecido",
-    }
-  );
+// Helper: Simula um "JOIN" para pegar dados da meta ao listar lançamentos pendentes
+const getGoalById = (id: string): Goal | undefined => {
+  return goalsDB.find((g) => g.id === id);
 };
+
+// ===========================================================================
+// 2. HANDLERS (Rotas da API Mockada)
+// ===========================================================================
 
 export const handlers = [
   // --- DASHBOARD & USER ---
   http.get("*/dashboard/metrics", async () => {
-    await delay(1000);
+    await delay(800);
     return HttpResponse.json({
       revenue: 45231.89,
       subscriptions: 2350,
       sales: 12234,
       activeNow: 573,
-      recentSales: [
-        { name: "Ana Silva", email: "ana@teste.com", amount: 1999.0 },
-        { name: "Carlos Souza", email: "carlos@teste.com", amount: 39.0 },
-      ],
     });
   }),
 
   http.get("*/users/:uid", async ({ params }) => {
-    await delay(600);
+    await delay(500);
     const { uid } = params;
     return HttpResponse.json({
       id: uid,
       name: "Gabriel Pinto Andrade",
-      email: "gabriel.andrade@aguiasistemas.com",
-      roles: ["superuser", "gestor"], // Corrigi typo 'avalaidor' -> 'gestor' ou mantenha se for custom
-      setor: { id: 1, acronym: "TI", name: "Tecnologia da Informação" },
+      email: "gabriel.andrade@exemplo.com",
+      roles: ["superuser", "gestor"], // Permissões para acessar todas as telas
+      setor: { id: "1", acronym: "TI", name: "Tecnologia da Informação" },
     });
   }),
 
-  // --- LISTAS DE METAS (HARDCODED) ---
-  // DICA: Unifiquei a resposta para garantir que o ID 501 exista nos dois lugares
-  http.get("*/goals/:uid", async ({ params }) => {
-    return HttpResponse.json(getHardcodedGoals(params.uid as string));
+  // --- METAS (CRUD) ---
+
+  // 1. Listar Metas (Geral / Minhas Metas)
+  http.get("*/goals/:uid", async () => {
+    await delay(400);
+    // Na vida real filtraria por responsável, aqui retorna tudo para facilitar teste
+    return HttpResponse.json(goalsDB);
   }),
 
-  http.get("*/sector/:sectorId/goals", async ({ params }) => {
-    await delay(700);
-    return HttpResponse.json(getHardcodedGoals(params.sectorId as string));
+  // 2. Listar Metas Criadas por Mim (Gestão)
+  http.get("*/goals/created/:uid", async ({ params }) => {
+    await delay(400);
+    const uid = String(params.uid);
+    // Retorna metas onde o creatorId bate com o usuário logado (ou o mock default)
+    const myCreatedGoals = goalsDB.filter(
+      (g) => g.creatorId === uid || g.creatorId === "uid-gestor"
+    );
+    return HttpResponse.json(myCreatedGoals);
   }),
 
-  http.get("*/goals/launcher/:uid", async ({ params }) => {
+  // 3. Listar Metas do Setor
+  http.get("*/sector/:sectorId/goals", async () => {
     await delay(600);
-    return HttpResponse.json(getHardcodedGoals(params.uid as string));
+    return HttpResponse.json(goalsDB); // Retorna todas como exemplo
   }),
 
-  // --- CRUD DE LANÇAMENTOS (AQUI ESTÁ A LÓGICA CRÍTICA) ---
+  // 4. Listar Metas onde sou Lançador
+  http.get("*/goals/launcher/:uid", async () => {
+    await delay(400);
+    return HttpResponse.json(goalsDB); // Retorna todas como exemplo
+  }),
 
-  // 1. GET: Lista lançamentos de uma meta
+  // 5. CRIAR NOVA META (POST)
+  http.post("*/goals", async ({ request }) => {
+    await delay(1000); // Delay maior para simular processamento
+    const body = (await request.json()) as Partial<Goal>;
+
+    const newGoal: Goal = {
+      id: Math.random().toString(36).substr(2, 9),
+      progress: 0,
+      status: "pending",
+      // Valores padrão para garantir integridade
+      title: body.title || "Nova Meta Sem Título",
+      description: body.description || "",
+      deadline: body.deadline || new Date().toISOString(),
+      frequency: body.frequency || "mensal",
+      priority: body.priority || "medium",
+      inputType: body.inputType || "numeric",
+      levels: body.levels || [],
+      // Mock de papéis
+      creatorId: body.creatorId || "uid-gestor",
+      creatorName: "Eu (Gestor)",
+      responsibleId: body.responsibleId || "uid-gestor",
+      responsibleName: "Colaborador Padrão",
+      launcherId: body.launcherId || "uid-gestor",
+      launcherName: "Colaborador Padrão",
+      ...body,
+    };
+
+    goalsDB.push(newGoal); // Adiciona ao banco em memória
+
+    // Inicializa o array de lançamentos para essa nova meta
+    launchesDB[newGoal.id] = [];
+
+    return HttpResponse.json(newGoal, { status: 201 });
+  }),
+
+  // --- LANÇAMENTOS (CRUD) ---
+
+  // 1. Listar Lançamentos de uma Meta
   http.get("*/goals/:goalId/launches", async ({ params }) => {
     await delay(300);
     const gid = String(params.goalId);
-
-    const list = launchesDB[gid] || [];
-    console.log(`[MSW] GET Launches para Meta ${gid}:`, list.length, "itens");
-
-    return HttpResponse.json(list);
+    return HttpResponse.json(launchesDB[gid] || []);
   }),
 
-  // 2. POST: Cria novo lançamento
+  // 2. Criar Lançamento (POST)
   http.post("*/goals/:goalId/launches", async ({ params, request }) => {
-    await delay(800);
+    await delay(600);
     const gid = String(params.goalId);
-    const body = (await request.json()) as any;
-
-    console.log(`[MSW] POST Launch recebido para Meta ${gid}:`, body);
+    const body = (await request.json()) as Partial<Launch>;
 
     const newLaunch: Launch = {
       id: Math.random().toString(36).substr(2, 9),
       createdAt: new Date().toISOString(),
-      authorName: "Eu Mesmo (Mock)",
+      authorName: "Gabriel Gestor", // Simula usuário logado
       status: "pending",
-      rejectionReason: undefined,
+      date: new Date().toISOString(),
+      value: 0,
+      evidenceUrl: "",
       ...body,
     };
 
-    // Garante que o array existe antes de dar push
-    if (!launchesDB[gid]) {
-      launchesDB[gid] = [];
-    }
-
+    if (!launchesDB[gid]) launchesDB[gid] = [];
     launchesDB[gid].push(newLaunch);
-
-    console.log(
-      `[MSW] Novo total de lançamentos para ${gid}:`,
-      launchesDB[gid].length
-    );
 
     return HttpResponse.json(newLaunch, { status: 201 });
   }),
 
-  // 3. PUT: Corrige lançamento
+  // 3. Atualizar Lançamento (PUT)
   http.put(
     "*/goals/:goalId/launches/:launchId",
     async ({ params, request }) => {
-      await delay(800);
+      await delay(600);
       const gid = String(params.goalId);
       const { launchId } = params;
-      const body = (await request.json()) as any;
+      const body = (await request.json()) as Partial<Launch>;
 
-      const launches = launchesDB[gid] || [];
-      const index = launches.findIndex((l) => l.id === launchId);
+      const list = launchesDB[gid] || [];
+      const index = list.findIndex((l) => l.id === launchId);
 
       if (index > -1) {
-        launches[index] = {
-          ...launches[index],
-          ...body,
-          status: "pending",
-          rejectionReason: undefined,
-        };
-        return HttpResponse.json(launches[index]);
+        list[index] = { ...list[index], ...body, status: "pending" }; // Volta para pendente ao editar
+        return HttpResponse.json(list[index]);
       }
+
       return new HttpResponse(null, { status: 404 });
     }
   ),
 
   // --- AUDITORIA ---
 
-  // 1. GET: Lista tudo que está pendente
+  // 1. Listar TODOS os pendentes (Auditoria Global)
   http.get("*/launches/pending", async () => {
-    await delay(600);
+    await delay(500);
     const pendingList: PendingLaunch[] = [];
 
+    // Itera sobre todas as metas no banco de lançamentos
     Object.keys(launchesDB).forEach((goalId) => {
       const goalInfo = getGoalById(goalId);
       const launches = launchesDB[goalId];
 
-      const pendings = launches
-        .filter((l) => l.status === "pending")
-        .map((l) => ({
-          ...l,
-          goalId,
-          goalTitle: goalInfo.title,
-          goalInputType: goalInfo.inputType,
-          responsibleName: goalInfo.responsibleName,
-        }));
-
-      pendingList.push(...pendings);
+      if (goalInfo && launches) {
+        const pendings = launches
+          .filter((l) => l.status === "pending")
+          .map((l) => ({
+            ...l,
+            goalId,
+            goalTitle: goalInfo.title,
+            goalInputType: goalInfo.inputType,
+            responsibleName: goalInfo.responsibleName || "Desconhecido",
+          }));
+        pendingList.push(...pendings);
+      }
     });
 
-    console.log(
-      "[MSW] Pendentes encontrados na Auditoria:",
-      pendingList.length
-    );
     return HttpResponse.json(pendingList);
   }),
 
-  // 2. PATCH: Aprova/Rejeita
+  // 2. Avaliar Lançamento (PATCH)
   http.patch("*/launches/evaluate", async ({ request }) => {
-    await delay(800);
+    await delay(600);
     const body = (await request.json()) as any;
     const { goalId, launchId, status, rejectionReason } = body;
     const gid = String(goalId);
@@ -208,46 +281,3 @@ export const handlers = [
     return new HttpResponse(null, { status: 404 });
   }),
 ];
-
-// --- HELPER PARA EVITAR CÓDIGO DUPLICADO ---
-function getHardcodedGoals(uid: string) {
-  return [
-    {
-      id: "501",
-      title: "Faturamento Q3",
-      description: "Meta financeira.",
-      status: "in_progress",
-      priority: "high",
-      progress: 0,
-      deadline: "2024-12-31T00:00:00Z",
-      frequency: "mensal",
-      inputType: "numeric",
-      levels: [
-        { targetValue: 400000, percentage: 20 },
-        { targetValue: 800000, percentage: 60 },
-        { targetValue: 1000000, percentage: 100 },
-      ],
-      creatorId: "uid-gestor",
-      responsibleId: uid,
-      launcherId: uid,
-    },
-    {
-      id: "601",
-      title: "Obter Licença Ambiental",
-      description: "A licença deve ser emitida e protocolada.",
-      status: "pending",
-      priority: "high",
-      progress: 0,
-      deadline: "2024-10-15T00:00:00Z",
-      frequency: "semestral",
-      inputType: "options",
-      levels: [
-        { targetValue: "Não", percentage: 0 },
-        { targetValue: "Sim", percentage: 100 },
-      ],
-      creatorId: "uid-gestor",
-      responsibleId: uid,
-      launcherId: uid,
-    },
-  ];
-}

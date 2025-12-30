@@ -12,6 +12,7 @@ import {
   Users,
   PenTool,
   Scale,
+  Briefcase,
 } from "lucide-react";
 import { auth } from "@/lib/firebase/client"; // Ajuste o caminho se necessário (ex: @/lib/firebase/client)
 
@@ -183,6 +184,11 @@ export default function DashboardLayout() {
               to={`/sector/${profile.setor.id}/goals`}
               icon={Users}
               label="Metas do Setor"
+            />
+            <NavItem
+              to="/created-goals"
+              icon={Briefcase}
+              label="Criadas por Mim"
             />
           </>
         )}

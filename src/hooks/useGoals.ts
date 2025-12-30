@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import type { Goal } from "@/types/goal";
 import { useAuth } from "@/lib/context/AuthContext";
@@ -46,5 +46,44 @@ export function useLauncherGoals() {
     queryFn: () => fetchLauncherGoals(user!.uid),
     enabled: !!user?.uid,
     staleTime: 1000 * 60 * 5,
+  });
+}
+
+const fetchCreatedGoals = async (uid: string): Promise<Goal[]> => {
+  const { data } = await api.get(`/goals/created/${uid}`);
+  return data;
+};
+
+// --- NOVO: Hook ---
+export function useCreatedGoals() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["created-goals", user?.uid],
+    queryFn: () => fetchCreatedGoals(user!.uid),
+    enabled: !!user?.uid,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+const createGoal = async (data: Partial<Goal>) => {
+  const { data: res } = await api.post("/goals", data);
+  return res;
+};
+
+// Hook
+export function useCreateGoal() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: (data: Partial<Goal>) =>
+      createGoal({ ...data, creatorId: user?.uid }),
+    onSuccess: () => {
+      // Invalida todas as listas possíveis para garantir atualização
+      queryClient.invalidateQueries({ queryKey: ["created-goals"] });
+      queryClient.invalidateQueries({ queryKey: ["my-goals"] });
+      queryClient.invalidateQueries({ queryKey: ["sector-goals"] });
+    },
   });
 }

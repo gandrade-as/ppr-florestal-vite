@@ -13,6 +13,7 @@ import GoalsPage from "./pages/Goals";
 import SectorGoalsPage from "./pages/sector/SectorGoals";
 import LauncherGoalsPage from "./pages/LauncherGoals";
 import EvaluationPage from "./pages/admin/EvaluationPage";
+import CreatedGoalsPage from "./pages/admin/CreatedGoals";
 
 // 1. Instância do Cliente (Configuração Otimizada)
 const queryClient = new QueryClient({
@@ -71,6 +72,7 @@ export default function App() {
                     path="/sector/:sectorId/goals"
                     element={<SectorGoalsPage />}
                   />
+                  <Route path="/created-goals" element={<CreatedGoalsPage />} />
                 </Route>
               </Route>
             </Route>

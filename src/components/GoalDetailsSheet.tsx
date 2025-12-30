@@ -123,7 +123,7 @@ export function GoalDetailsSheet({
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
       {/* Mantive suas classes de largura customizada */}
-      <SheetContent className="w-100 sm:w-135 flex flex-col h-full p-0 gap-0">
+      <SheetContent className="w-100 sm:w-135 flex flex-col h-full p-0 gap-0 overflow-y-auto">
         <SheetHeader className="px-6 pt-6 pb-4 bg-muted/5 border-b">
           <SheetTitle className="text-xl">{goal.title}</SheetTitle>
 
