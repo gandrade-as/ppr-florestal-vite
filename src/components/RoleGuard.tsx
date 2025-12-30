@@ -1,11 +1,11 @@
 import { type ReactNode } from "react";
 import { useUserProfile } from "@/hooks/useUserProfile";
-import type { UserRole } from "@/types/user"; // Importando do arquivo centralizado
+import type { UserRole } from "@/types/user";
 
 interface RoleGuardProps {
   children: ReactNode;
   allowedRoles: UserRole[]; // Ex: ["superuser", "gestor"]
-  fallback?: ReactNode; // Opcional: O que mostrar se negado (ex: mensagem de erro)
+  fallback?: ReactNode;
 }
 
 export function RoleGuard({
@@ -15,14 +15,19 @@ export function RoleGuard({
 }: RoleGuardProps) {
   const { data: profile, isLoading } = useUserProfile();
 
-  // 1. Enquanto carrega, não mostramos nada (ou poderia ser um Skeleton)
-  // Isso evita que o botão "pisque" na tela antes de saber o cargo
+  // 1. Loading state
   if (isLoading) {
     return null;
   }
 
-  // 2. Se não tem perfil ou o cargo não está na lista permitida
-  if (!profile || !allowedRoles.includes(profile.role)) {
+  // 2. Verificação de Segurança Atualizada
+  // Usamos .some() para ver se ALGUM (some) cargo do usuário está incluso nos permitidos
+  const hasPermission = profile?.roles.some((userRole) =>
+    allowedRoles.includes(userRole)
+  );
+
+  // Se não tem perfil carregado OU não tem permissão
+  if (!profile || !hasPermission) {
     return <>{fallback}</>;
   }
 

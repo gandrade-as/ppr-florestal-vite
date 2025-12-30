@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
-import type { Launch } from "@/types/goal";
+import type { EvaluatePayload, Launch, PendingLaunch } from "@/types/goal";
 
 // Fetch
 const fetchLaunches = async (goalId: string): Promise<Launch[]> => {
@@ -71,6 +71,42 @@ export function useUpdateLaunch() {
       queryClient.invalidateQueries({
         queryKey: ["launches", variables.goalId],
       });
+    },
+  });
+}
+
+// Fetch Pending
+const fetchPendingLaunches = async (): Promise<PendingLaunch[]> => {
+  const { data } = await api.get("/launches/pending");
+  return data;
+};
+
+// Evaluate Action
+const evaluateLaunch = async (payload: EvaluatePayload) => {
+  const { data } = await api.patch("/launches/evaluate", payload);
+  return data;
+};
+
+// --- HOOKS ---
+
+export function usePendingLaunches() {
+  return useQuery({
+    queryKey: ["launches-pending"],
+    queryFn: fetchPendingLaunches,
+  });
+}
+
+export function useEvaluateLaunch() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: evaluateLaunch,
+    onSuccess: () => {
+      // Invalida a lista de pendentes (para sumir da tela)
+      queryClient.invalidateQueries({ queryKey: ["launches-pending"] });
+      // Invalida listas específicas de metas se estiverem abertas
+      queryClient.invalidateQueries({ queryKey: ["launches"] });
+      queryClient.invalidateQueries({ queryKey: ["launcher-goals"] });
     },
   });
 }

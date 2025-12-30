@@ -12,6 +12,7 @@ import DashboardLayout from "@/layouts/DashboardLayout"; // Importe o novo layou
 import GoalsPage from "./pages/Goals";
 import SectorGoalsPage from "./pages/sector/SectorGoals";
 import LauncherGoalsPage from "./pages/LauncherGoals";
+import EvaluationPage from "./pages/admin/EvaluationPage";
 
 // 1. Instância do Cliente (Configuração Otimizada)
 const queryClient = new QueryClient({
@@ -50,6 +51,14 @@ export default function App() {
                 <Route path="/metas" element={<GoalsPage />} />
                 <Route path="/lancamentos" element={<LauncherGoalsPage />} />
                 {/* <Route path="/perfil" element={<ProfilePage />} /> */}
+
+                <Route
+                  element={
+                    <ProtectedRoute allowedRoles={["superuser", "avaliador"]} />
+                  }
+                >
+                  <Route path="/auditoria" element={<EvaluationPage />} />
+                </Route>
 
                 {/* ÁREA DE GESTÃO (Setor) */}
                 <Route

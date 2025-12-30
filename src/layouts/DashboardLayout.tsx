@@ -11,6 +11,7 @@ import {
   Target,
   Users,
   PenTool,
+  Scale,
 } from "lucide-react";
 import { auth } from "@/lib/firebase/client"; // Ajuste o caminho se necessário (ex: @/lib/firebase/client)
 
@@ -36,6 +37,7 @@ import { useAuth } from "@/lib/context/AuthContext"; // Ajuste o caminho se nece
 import { cn } from "@/lib/utils";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { Skeleton } from "@/components/ui/skeleton";
+import { RoleGuard } from "@/components/RoleGuard";
 
 export default function DashboardLayout() {
   const navigate = useNavigate();
@@ -49,7 +51,9 @@ export default function DashboardLayout() {
   });
 
   const { data: profile, isLoading: isLoadingProfile } = useUserProfile();
-  const isManager = profile?.role === "gestor" || profile?.role === "superuser";
+  const isManager = profile?.roles.some((r) =>
+    ["gestor", "superuser"].includes(r)
+  );
 
   // Salva a preferência sempre que mudar
   useEffect(() => {
@@ -155,6 +159,9 @@ export default function DashboardLayout() {
               icon={PenTool}
               label="Meus Lançamentos"
             />
+            <RoleGuard allowedRoles={["superuser", "avaliador"]}>
+              <NavItem to="/auditoria" icon={Scale} label="Auditoria" />
+            </RoleGuard>
             {/* <NavItem to="/perfil" icon={User} label="Perfil" /> */}
           </nav>
         </div>
@@ -277,7 +284,7 @@ export default function DashboardLayout() {
                     {profile?.setor.name} ({profile?.setor.acronym})
                   </p>
                   {/* Mostrar cargo se for Admin */}
-                  {profile?.role === "admin" && (
+                  {profile?.roles.includes("admin") && (
                     <span className="text-[10px] text-primary font-bold mt-1">
                       ADMINISTRADOR
                     </span>

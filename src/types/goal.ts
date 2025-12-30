@@ -60,3 +60,17 @@ export const getMaxLaunches = (freq: GoalFrequency): number => {
       return 0;
   }
 };
+
+export interface PendingLaunch extends Launch {
+  goalId: string;
+  goalTitle: string;
+  goalInputType: GoalInputType; // Para sabermos como formatar (R$ ou Texto)
+  responsibleName: string; // Quem é o dono da meta
+}
+
+export interface EvaluatePayload {
+  launchId: string;
+  goalId: string;
+  status: "approved" | "rejected";
+  rejectionReason?: string;
+}

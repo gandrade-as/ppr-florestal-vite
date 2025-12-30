@@ -1,18 +1,17 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/lib/context/AuthContext";
 import { useUserProfile } from "@/hooks/useUserProfile";
-import type { UserRole } from "@/types/user";
+import { type UserRole } from "@/types/user";
 
 interface ProtectedRouteProps {
-  allowedRoles?: UserRole[]; // Agora aceita roles opcionais
+  allowedRoles?: UserRole[];
 }
 
 export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
   const { user, loading: authLoading } = useAuth();
   const { data: profile, isLoading: profileLoading } = useUserProfile();
 
-  // 1. Carregando Auth ou Perfil
-  if (authLoading || (user && profileLoading)) {
+  if (authLoading || profileLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
         Carregando...
@@ -20,15 +19,22 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
     );
   }
 
-  // 2. Não logado no Firebase
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  // 3. Se a rota exige roles específicos e o usuário não tem o role necessário
-  if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
-    // Redireciona para o Dashboard ou uma página de "Sem Permissão"
-    return <Navigate to="/dashboard" replace />;
+  // NOVA LÓGICA DE VERIFICAÇÃO
+  if (allowedRoles && profile) {
+    // Verifica se existe INTERSEÇÃO entre os arrays
+    // "O usuário tem ALGUM cargo que está na lista de allowedRoles?"
+    const hasPermission = profile.roles.some((userRole) =>
+      allowedRoles.includes(userRole)
+    );
+
+    if (!hasPermission) {
+      // Se não tiver permissão, manda pro dashboard padrão
+      return <Navigate to="/dashboard" replace />;
+    }
   }
 
   return <Outlet />;
