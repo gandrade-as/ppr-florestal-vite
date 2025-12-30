@@ -1,0 +1,72 @@
+import { db } from "@/lib/firebase/client";
+import { FirestoreSectorSchema, type FirestoreSector } from "@/types/sector";
+import { FirestoreUserProfileSchema, type FirestoreUserProfile, type HydratedUserProfile } from "@/types/user"
+import { doc, getDoc, QueryDocumentSnapshot, type FirestoreDataConverter, type SnapshotOptions } from "firebase/firestore"
+
+const userConverter: FirestoreDataConverter<FirestoreUserProfile> = {
+  toFirestore: (user: FirestoreUserProfile) => user,
+
+  fromFirestore(
+    snapshot: QueryDocumentSnapshot,
+    options: SnapshotOptions
+  ): FirestoreUserProfile {
+    const data = snapshot.data(options);
+
+    const result = FirestoreUserProfileSchema.safeParse(data);
+
+    if (!result.success) {
+      console.error(
+        `Erro de validação no User DB (${snapshot.id}):`,
+        result.error.format()
+      );
+      throw new Error("Dados de perfil inválidos/corrompidos.");
+    }
+
+    return result.data;
+  },
+};
+
+const sectorConverter: FirestoreDataConverter<FirestoreSector> = {
+  toFirestore: (sector: FirestoreSector) => sector,
+  fromFirestore: (snapshot) => {
+    const data = { id: snapshot.id, ...snapshot.data() };
+    return FirestoreSectorSchema.parse(data);
+  },
+};
+
+export const fetchUserProfileFromFirestore = async (
+  uid: string
+): Promise<HydratedUserProfile | null> => {
+  try {
+    const userRef = doc(db, "users", uid).withConverter(userConverter);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) return null;
+
+    const userData = userSnap.data();
+
+    const sectorRef = doc(db, "sectors", userData.sector_id).withConverter(
+      sectorConverter
+    );
+    const sectorSnap = await getDoc(sectorRef);
+
+    if (!sectorSnap.exists()) {
+      throw new Error(
+        `Setor vinculado (${userData.sector_id}) não encontrado.`
+      );
+    }
+
+    const { sector_id, ...userProps } = userData;
+
+    const finalUser: HydratedUserProfile = {
+      id: userSnap.id,
+      ...userProps,
+      sector: sectorSnap.data(), 
+    };
+
+    return finalUser;
+  } catch (error) {
+    console.error("Erro no fetchUserProfileFromFirestore:", error);
+    throw error;
+  }
+};

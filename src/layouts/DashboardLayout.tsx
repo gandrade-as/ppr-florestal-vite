@@ -167,7 +167,7 @@ export default function DashboardLayout() {
           </nav>
         </div>
 
-        {isManager && profile?.setor?.id && (
+        {isManager && profile?.sector?.id && (
           <>
             <div className="my-2 border-t border-border/50" />
             <span
@@ -181,7 +181,7 @@ export default function DashboardLayout() {
 
             {/* Link Dinâmico usando o ID do setor do usuário logado */}
             <NavItem
-              to={`/sector/${profile.setor.id}/goals`}
+              to={`/sector/${profile.sector.id}/goals`}
               icon={Users}
               label="Metas do Setor"
             />
@@ -287,7 +287,7 @@ export default function DashboardLayout() {
                     {user?.email}
                   </p>
                   <p className="text-xs leading-none text-muted-foreground">
-                    {profile?.setor.name} ({profile?.setor.acronym})
+                    {profile?.sector.name} ({profile?.sector.acronym})
                   </p>
                   {/* Mostrar cargo se for Admin */}
                   {profile?.roles.includes("admin") && (

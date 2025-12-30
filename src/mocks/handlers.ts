@@ -99,17 +99,17 @@ export const handlers = [
     });
   }),
 
-  http.get("*/users/:uid", async ({ params }) => {
-    await delay(500);
-    const { uid } = params;
-    return HttpResponse.json({
-      id: uid,
-      name: "Gabriel Pinto Andrade",
-      email: "gabriel.andrade@exemplo.com",
-      roles: ["superuser", "gestor"], // Permissões para acessar todas as telas
-      setor: { id: "1", acronym: "TI", name: "Tecnologia da Informação" },
-    });
-  }),
+  // http.get("*/users/:uid", async ({ params }) => {
+  //   await delay(500);
+  //   const { uid } = params;
+  //   return HttpResponse.json({
+  //     id: uid,
+  //     name: "Gabriel Pinto Andrade",
+  //     email: "gabriel.andrade@exemplo.com",
+  //     roles: ["superuser", "gestor"], // Permissões para acessar todas as telas
+  //     sector: { id: "1", acronym: "TI", name: "Tecnologia da Informação" },
+  //   });
+  // }),
 
   // --- METAS (CRUD) ---
 
