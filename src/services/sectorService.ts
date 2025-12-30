@@ -1,31 +1,14 @@
 import { db } from "@/lib/firebase/client";
 import { FirestoreSectorSchema, type FirestoreSector } from "@/types/sector"
-import { doc, getDoc, QueryDocumentSnapshot, type FirestoreDataConverter, type SnapshotOptions } from "firebase/firestore"
+import { doc, getDoc, type FirestoreDataConverter} from "firebase/firestore"
 
-const sectorConverter: FirestoreDataConverter<FirestoreSector> = {
-    toFirestore(sector: FirestoreSector) {
-        const {id, ...data} = sector;
-        return data;
-    },
-
-    fromFirestore(
-        snapshot: QueryDocumentSnapshot,
-        options: SnapshotOptions
-    ): FirestoreSector {
-        const data = snapshot.data(options);
-
-        const dataWithId = { id: snapshot.id, ...data };
-
-        const result = FirestoreSectorSchema.safeParse(dataWithId);
-
-        if (!result.success) {
-            console.error("Erro ao converter Sector do Firestore:", result.error);
-            throw new Error("Dados de setor inválidos/corrompidos.");
-        }
-
-        return result.data as FirestoreSector;
-    }
-}
+export const sectorConverter: FirestoreDataConverter<FirestoreSector> = {
+  toFirestore: (sector: FirestoreSector) => sector,
+  fromFirestore: (snapshot) => {
+    const data = { id: snapshot.id, ...snapshot.data() };
+    return FirestoreSectorSchema.parse(data);
+  },
+};
 
 export const fetchSectorFromFirestore = async (
   id: string

@@ -1,9 +1,9 @@
 import { db } from "@/lib/firebase/client";
-import { FirestoreSectorSchema, type FirestoreSector } from "@/types/sector";
 import { FirestoreUserProfileSchema, type FirestoreUserProfile, type HydratedUserProfile } from "@/types/user"
 import { doc, getDoc, QueryDocumentSnapshot, type FirestoreDataConverter, type SnapshotOptions } from "firebase/firestore"
+import { sectorConverter } from "./sectorService";
 
-const userConverter: FirestoreDataConverter<FirestoreUserProfile> = {
+export const userConverter: FirestoreDataConverter<FirestoreUserProfile> = {
   toFirestore: (user: FirestoreUserProfile) => user,
 
   fromFirestore(
@@ -23,14 +23,6 @@ const userConverter: FirestoreDataConverter<FirestoreUserProfile> = {
     }
 
     return result.data;
-  },
-};
-
-const sectorConverter: FirestoreDataConverter<FirestoreSector> = {
-  toFirestore: (sector: FirestoreSector) => sector,
-  fromFirestore: (snapshot) => {
-    const data = { id: snapshot.id, ...snapshot.data() };
-    return FirestoreSectorSchema.parse(data);
   },
 };
 

@@ -1,3 +1,6 @@
+import z from "zod";
+import { HydratedUserProfileSchema } from "./user";
+
 export type GoalStatus = "pending" | "in_progress" | "completed" | "canceled";
 export type GoalPriority = "low" | "medium" | "high";
 export type GoalFrequency = "mensal" | "trimestral" | "semestral";
@@ -74,3 +77,38 @@ export interface EvaluatePayload {
   status: "approved" | "rejected";
   rejectionReason?: string;
 }
+
+export const FirestoreGoalSchema = z.object({
+  title: z.string(),
+  description: z.string().optional(),
+  status: z.enum(["pending", "in_progress", "completed", "canceled"]),
+  priority: z.enum(["low", "medium", "high"]),
+  progress: z.number().min(0).max(100),
+  deadline: z.string(), // ISO String
+  frequency: z.enum(["mensal", "trimestral", "semestral"]),
+
+  inputType: z.enum(["numeric", "options"]),
+  levels: z.array(
+    z.object({
+      targetValue: z.union([z.string(), z.number()]),
+      percentage: z.number().min(0).max(100),
+    })
+  ),
+
+  creator_id: z.string(),
+  responsible_id: z.string(),
+  launcher_id: z.string(),
+})
+
+export const HydratedGoalSchema = FirestoreGoalSchema
+.omit({
+  creator_id: true,
+  responsible_id: true,
+  launcher_id: true,
+})
+.extend({
+  id: z.string(),
+  creator: HydratedUserProfileSchema,
+  responsible: HydratedUserProfileSchema,
+  launcher: HydratedUserProfileSchema,
+})
