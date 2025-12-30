@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
-import { useAuth } from "@/lib/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 import type { UserProfile } from "@/types/user";
 
 // Função de busca (Fetch)

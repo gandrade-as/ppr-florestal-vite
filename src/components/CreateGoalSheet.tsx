@@ -72,7 +72,7 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-full sm:w-[540px] sm:max-w-none p-0 flex flex-col">
+      <SheetContent className="w-full sm:w-135 sm:max-w-none p-0 flex flex-col">
         <SheetHeader className="p-6 border-b bg-muted/5">
           <SheetTitle>Nova Meta</SheetTitle>
           <SheetDescription>
@@ -122,7 +122,7 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
                   <SelectTrigger className="bg-background">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="z-[100]">
+                  <SelectContent className="z-100">
                     <SelectItem value="low">Baixa</SelectItem>
                     <SelectItem value="medium">Média</SelectItem>
                     <SelectItem value="high">Alta</SelectItem>
@@ -143,7 +143,7 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
                   <SelectTrigger className="bg-background">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="z-[100]">
+                  <SelectContent className="z-100">
                     <SelectItem value="mensal">Mensal</SelectItem>
                     <SelectItem value="trimestral">Trimestral</SelectItem>
                     <SelectItem value="semestral">Semestral</SelectItem>
@@ -161,7 +161,7 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
                   <SelectTrigger className="bg-background">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="z-[100]">
+                  <SelectContent className="z-100">
                     <SelectItem value="numeric">Numérico</SelectItem>
                     <SelectItem value="options">Sim/Não</SelectItem>
                   </SelectContent>

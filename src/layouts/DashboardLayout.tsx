@@ -34,7 +34,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useAuth } from "@/lib/context/AuthContext"; // Ajuste o caminho se necessário
+import { useAuth } from "@/context/AuthContext"; // Ajuste o caminho se necessário
 import { cn } from "@/lib/utils";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { Skeleton } from "@/components/ui/skeleton";

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import type { Goal } from "@/types/goal";
-import { useAuth } from "@/lib/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 
 const fetchUserGoals = async (uid: string): Promise<Goal[]> => {
   const { data } = await api.get(`/goals/${uid}`);
