@@ -1,22 +1,35 @@
-import { Navigate, Outlet} from "react-router-dom";
+import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/lib/context/AuthContext";
+import { useUserProfile } from "@/hooks/useUserProfile";
+import type { UserRole } from "@/types/user";
 
-export function ProtectedRoute() {
-    const { user, loading } = useAuth();
+interface ProtectedRouteProps {
+  allowedRoles?: UserRole[]; // Agora aceita roles opcionais
+}
 
-    if (loading) {
-        return (
-          <div className="flex h-screen w-full items-center justify-center">
-            {/* Simples spinner usando classes do Tailwind/shadcn */}
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          </div>
-        );
-    }
+export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
+  const { user, loading: authLoading } = useAuth();
+  const { data: profile, isLoading: profileLoading } = useUserProfile();
 
-    if (!user) {
-      return <Navigate to="/login" replace />;
-    }
+  // 1. Carregando Auth ou Perfil
+  if (authLoading || (user && profileLoading)) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        Carregando...
+      </div>
+    );
+  }
 
-    // 3. Se tem usuário, renderiza as rotas filhas (O Dashboard, Perfil, etc).
-    return <Outlet />;
+  // 2. Não logado no Firebase
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // 3. Se a rota exige roles específicos e o usuário não tem o role necessário
+  if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
+    // Redireciona para o Dashboard ou uma página de "Sem Permissão"
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <Outlet />;
 }

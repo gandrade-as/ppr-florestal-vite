@@ -9,6 +9,9 @@ import DashboardPage from "@/pages/Dashboard";
 
 // ... imports anteriores
 import DashboardLayout from "@/layouts/DashboardLayout"; // Importe o novo layout
+import GoalsPage from "./pages/Goals";
+import SectorGoalsPage from "./pages/sector/SectorGoals";
+import LauncherGoalsPage from "./pages/LauncherGoals";
 
 // 1. Instância do Cliente (Configuração Otimizada)
 const queryClient = new QueryClient({
@@ -30,7 +33,13 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
 
             {/* Camada de Segurança */}
-            <Route element={<ProtectedRoute />}>
+            <Route
+              element={
+                <ProtectedRoute
+                  allowedRoles={["superuser", "admin", "gestor"]}
+                />
+              }
+            >
               {/* Camada de Layout Visual */}
               <Route element={<DashboardLayout />}>
                 <Route
@@ -38,7 +47,22 @@ export default function App() {
                   element={<Navigate to="/dashboard" replace />}
                 />
                 <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/metas" element={<GoalsPage />} />
+                <Route path="/lancamentos" element={<LauncherGoalsPage />} />
                 {/* <Route path="/perfil" element={<ProfilePage />} /> */}
+
+                {/* ÁREA DE GESTÃO (Setor) */}
+                <Route
+                  element={
+                    <ProtectedRoute allowedRoles={["superuser", "gestor"]} />
+                  }
+                >
+                  {/* O :sectorId é dinâmico */}
+                  <Route
+                    path="/sector/:sectorId/goals"
+                    element={<SectorGoalsPage />}
+                  />
+                </Route>
               </Route>
             </Route>
 

@@ -8,6 +8,9 @@ import {
   Package2,
   ChevronLeft,
   ChevronRight,
+  Target,
+  Users,
+  PenTool,
 } from "lucide-react";
 import { auth } from "@/lib/firebase/client"; // Ajuste o caminho se necessário (ex: @/lib/firebase/client)
 
@@ -31,6 +34,8 @@ import {
 } from "@/components/ui/tooltip";
 import { useAuth } from "@/lib/context/AuthContext"; // Ajuste o caminho se necessário
 import { cn } from "@/lib/utils";
+import { useUserProfile } from "@/hooks/useUserProfile";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function DashboardLayout() {
   const navigate = useNavigate();
@@ -42,6 +47,9 @@ export default function DashboardLayout() {
     const saved = localStorage.getItem("sidebar-collapsed");
     return saved === "true";
   });
+
+  const { data: profile, isLoading: isLoadingProfile } = useUserProfile();
+  const isManager = profile?.role === "gestor" || profile?.role === "superuser";
 
   // Salva a preferência sempre que mudar
   useEffect(() => {
@@ -141,9 +149,36 @@ export default function DashboardLayout() {
         <div className="flex-1 overflow-y-auto py-2">
           <nav className="grid items-start px-2 text-sm font-medium lg:px-4 gap-1">
             <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
-            <NavItem to="/perfil" icon={User} label="Perfil" />
+            <NavItem to="/metas" icon={Target} label="Minhas Metas" />
+            <NavItem
+              to="/lancamentos"
+              icon={PenTool}
+              label="Meus Lançamentos"
+            />
+            {/* <NavItem to="/perfil" icon={User} label="Perfil" /> */}
           </nav>
         </div>
+
+        {isManager && profile?.setor?.id && (
+          <>
+            <div className="my-2 border-t border-border/50" />
+            <span
+              className={cn(
+                "px-4 text-xs font-semibold text-muted-foreground mb-2",
+                isCollapsed && "hidden"
+              )}
+            >
+              GESTÃO
+            </span>
+
+            {/* Link Dinâmico usando o ID do setor do usuário logado */}
+            <NavItem
+              to={`/sector/${profile.setor.id}/goals`}
+              icon={Users}
+              label="Metas do Setor"
+            />
+          </>
+        )}
 
         {/* Footer da Sidebar (Opcional: Logout rápido) */}
         <div className="mt-auto p-4 border-t">
@@ -201,6 +236,17 @@ export default function DashboardLayout() {
           {/* Espaçador */}
           <div className="w-full flex-1"></div>
 
+          <div className="w-full flex-1 flex justify-end items-center">
+            {/* Exemplo: Mostrar "Olá, Fulano" no header */}
+            {isLoadingProfile ? (
+              <Skeleton className="h-4 w-32" />
+            ) : (
+              <span className="text-sm font-medium ml-4 hidden md:inline-block">
+                Olá, {profile?.name.split(" ")[0] || "Usuário"}
+              </span>
+            )}
+          </div>
+
           {/* Dropdown do Usuário */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -215,6 +261,30 @@ export default function DashboardLayout() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuLabel>
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium leading-none">
+                    {isLoadingProfile ? (
+                      <Skeleton className="h-3 w-20" />
+                    ) : (
+                      profile?.name
+                    )}
+                  </p>
+                  <p className="text-xs leading-none text-muted-foreground">
+                    {user?.email}
+                  </p>
+                  <p className="text-xs leading-none text-muted-foreground">
+                    {profile?.setor.name} ({profile?.setor.acronym})
+                  </p>
+                  {/* Mostrar cargo se for Admin */}
+                  {profile?.role === "admin" && (
+                    <span className="text-[10px] text-primary font-bold mt-1">
+                      ADMINISTRADOR
+                    </span>
+                  )}
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
               <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => navigate("/perfil")}>
@@ -233,7 +303,7 @@ export default function DashboardLayout() {
         </header>
 
         {/* Conteúdo com Scroll Próprio */}
-        <main className="flex-1 overflow-hidden p-4 lg:p-6 bg-slate-50/50">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6 bg-slate-50/50">
           <Outlet />
         </main>
       </div>
