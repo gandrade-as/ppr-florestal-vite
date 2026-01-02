@@ -10,8 +10,6 @@ import {
   ChevronLeft,
   Plus,
   Trash2,
-  CheckCircle2,
-  AlertCircle,
 } from "lucide-react";
 
 import {
@@ -99,11 +97,13 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
     useSectorUsers(selectedSectorId);
 
   // Cálculo da soma das porcentagens em tempo real
-  const totalPercentage = levels.reduce(
-    (acc, curr) => acc + (Number(curr.percentage) || 0),
-    0
-  );
-  const isTotalValid = totalPercentage === 100;
+  // const totalPercentage = levels.reduce(
+  //   (acc, curr) => acc + (Number(curr.percentage) || 0),
+  //   0
+  // );
+
+  const isTotalValid =
+    levels.length > 0 && levels.every((l) => Number(l.percentage) >= 0);
 
   // Resetar formulário ao abrir/fechar
   useEffect(() => {
@@ -467,20 +467,10 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
               <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                 <div className="flex justify-between items-center bg-slate-100 p-3 rounded-lg border">
                   <div className="text-sm font-medium text-slate-700">
-                    Total Distribuído:
+                    Níveis de Atingimento:
                   </div>
-                  <div
-                    className={cn(
-                      "font-bold text-lg flex items-center gap-2",
-                      isTotalValid ? "text-green-600" : "text-red-600"
-                    )}
-                  >
-                    {isTotalValid ? (
-                      <CheckCircle2 className="h-5 w-5" />
-                    ) : (
-                      <AlertCircle className="h-5 w-5" />
-                    )}
-                    {totalPercentage}%
+                  <div className="font-bold text-lg text-blue-600">
+                    {fields.length} Nível(is)
                   </div>
                 </div>
 
@@ -549,12 +539,6 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
                 >
                   <Plus className="h-4 w-4" /> Adicionar Nível
                 </Button>
-
-                {!isTotalValid && (
-                  <p className="text-xs text-red-500 text-center font-medium bg-red-50 p-2 rounded">
-                    A soma das porcentagens deve ser exatamente 100%.
-                  </p>
-                )}
               </div>
             )}
           </form>

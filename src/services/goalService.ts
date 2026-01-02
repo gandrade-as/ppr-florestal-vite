@@ -85,13 +85,11 @@ export const fetchGoalsByResponsibleFromFirestore = async (
 
     const querySnapshot = await getDocs(q);
 
-    var goals: HydratedGoal[] = [];
+    const goalsPromises = querySnapshot.docs.map((docSnap) => 
+      hydrateGoal(docSnap.data(), docSnap.id)
+    );
 
-    for (const docSnap of querySnapshot.docs) {
-      hydrateGoal(docSnap.data(), docSnap.id).then(goalData => 
-        goals.push(goalData)
-      )
-    }
+    var goals = await Promise.all(goalsPromises);
 
     return goals;
   } catch (error) {
@@ -110,13 +108,11 @@ export const fetchGoalsBySectorFromFirestore = async (
 
     const querySnapshot = await getDocs(q);
 
-    var goals: HydratedGoal[] = [];
+    const goalsPromises = querySnapshot.docs.map((docSnap) =>
+      hydrateGoal(docSnap.data(), docSnap.id)
+    );
 
-    for (const docSnap of querySnapshot.docs) {
-      hydrateGoal(docSnap.data(), docSnap.id).then((goalData) =>
-        goals.push(goalData)
-      );
-    }
+    var goals = await Promise.all(goalsPromises);
 
     return goals;
   } catch (error) {
@@ -135,13 +131,11 @@ export const fetchGoalsByLauncherFromFirestore = async (
 
     const querySnapshot = await getDocs(q);
 
-    var goals: HydratedGoal[] = [];
+    const goalsPromises = querySnapshot.docs.map((docSnap) =>
+      hydrateGoal(docSnap.data(), docSnap.id)
+    );
 
-    for (const docSnap of querySnapshot.docs) {
-      hydrateGoal(docSnap.data(), docSnap.id).then((goalData) =>
-        goals.push(goalData)
-      );
-    }
+    var goals = await Promise.all(goalsPromises);
 
     return goals;
   } catch (error) {
@@ -160,13 +154,11 @@ export const fetchGoalsByCreatorFromFirestore = async (
 
     const querySnapshot = await getDocs(q);
 
-    var goals: HydratedGoal[] = [];
+    const goalsPromises = querySnapshot.docs.map((docSnap) =>
+      hydrateGoal(docSnap.data(), docSnap.id)
+    );
 
-    for (const docSnap of querySnapshot.docs) {
-      hydrateGoal(docSnap.data(), docSnap.id).then((goalData) =>
-        goals.push(goalData)
-      );
-    }
+    var goals = await Promise.all(goalsPromises);
 
     return goals;
   } catch (error) {
@@ -183,13 +175,11 @@ export const fetchPendingGoalsFromFirestore = async (): Promise<HydratedGoal[]> 
 
     const querySnapshot = await getDocs(q);
 
-    var goals: HydratedGoal[] = [];
+    const goalsPromises = querySnapshot.docs.map((docSnap) =>
+      hydrateGoal(docSnap.data(), docSnap.id)
+    );
 
-    for (const docSnap of querySnapshot.docs) {
-      hydrateGoal(docSnap.data(), docSnap.id).then((goalData) =>
-        goals.push(goalData)
-      );
-    }
+    var goals = await Promise.all(goalsPromises);
 
     return goals;
   } catch (error) {

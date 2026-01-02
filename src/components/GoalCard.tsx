@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import type { HydratedGoal } from "@/types/goal";
+import { useUserProfile } from "@/hooks/useUserProfile";
 
 // Mapeamento de Cores (pode ficar aqui ou em um utils/constants.ts)
 const statusMap: Record<
@@ -24,6 +25,7 @@ const statusMap: Record<
 };
 
 export function GoalCard({ goal }: { goal: HydratedGoal }) {
+  const { data: user } = useUserProfile();
   const statusInfo = statusMap[goal.status] || statusMap.pending;
 
   return (
@@ -75,7 +77,7 @@ export function GoalCard({ goal }: { goal: HydratedGoal }) {
         </div>
 
         {/* Dica visual se outra pessoa for lançar */}
-        {goal.launcher.id !== goal.responsible.id && (
+        {goal.launcher.id !== user?.id && (
           <div
             title={`Lançamento feito por: ${goal.launcher.name}`}
             className="flex items-center text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full"
