@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { useCreateGoal } from "@/hooks/useGoals";
+
+import { useSectors } from "@/hooks/useSector";
+import { useUsers, useSectorUsers } from "@/hooks/useUserProfile";
+
 import {
   ChevronRight,
   ChevronLeft,
@@ -32,6 +36,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { Timestamp } from "firebase/firestore";
 
 interface CreateGoalSheetProps {
   isOpen: boolean;
@@ -41,6 +46,10 @@ interface CreateGoalSheetProps {
 export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
   const { mutate: createGoal, isPending } = useCreateGoal();
   const [currentStep, setCurrentStep] = useState(0);
+
+  // --- HOOKS DE DADOS ---
+  const { data: sectors, isLoading: isLoadingSectors } = useSectors();
+  const { data: allUsers, isLoading: isLoadingAllUsers } = useUsers();
 
   // Configuração do Formulário
   const {
@@ -54,23 +63,23 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
     formState: { errors },
   } = useForm({
     defaultValues: {
-      // Etapa 1
+      // Etapa 1: Básico
       title: "",
       description: "",
       deadline: "",
       priority: "medium",
 
-      // Etapa 2
+      // Etapa 2: Pessoas (Nomes do Form em camelCase)
       sectorId: "",
       responsibleId: "",
       launcherId: "",
 
-      // Etapa 3
+      // Etapa 3: Configuração
       frequency: "mensal",
       inputType: "numeric",
 
-      // Etapa 4
-      levels: [{ targetValue: "", percentage: 100 }], // Inicial com 1 nível de 100%
+      // Etapa 4: Níveis
+      levels: [{ targetValue: "", percentage: 100 }],
     },
     mode: "onChange",
   });
@@ -80,9 +89,14 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
     name: "levels",
   });
 
-  // Watchers para lógica condicional e validação visual
+  // Watchers
   const inputType = watch("inputType");
   const levels = watch("levels");
+
+  // Observa o setor selecionado para buscar os usuários correspondentes
+  const selectedSectorId = watch("sectorId");
+  const { data: sectorUsers, isLoading: isLoadingSectorUsers } =
+    useSectorUsers(selectedSectorId);
 
   // Cálculo da soma das porcentagens em tempo real
   const totalPercentage = levels.reduce(
@@ -91,7 +105,7 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
   );
   const isTotalValid = totalPercentage === 100;
 
-  // Resetar formulário ao fechar/abrir
+  // Resetar formulário ao abrir/fechar
   useEffect(() => {
     if (isOpen) {
       setCurrentStep(0);
@@ -100,7 +114,6 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
   }, [isOpen, reset]);
 
   // --- NAVEGAÇÃO ---
-
   const steps = [
     {
       id: "basic",
@@ -117,19 +130,10 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
   ];
 
   const handleNext = async () => {
-    const fieldsToValidate = steps[currentStep].fields;
-    // @ts-ignore - Trigger aceita string ou array de strings correspondentes aos nomes dos campos
-    const isValid = await trigger(fieldsToValidate);
+    // @ts-ignore
+    const isValid = await trigger(steps[currentStep].fields);
 
     if (isValid) {
-      // Validação extra para a etapa de Setores (Placeholders)
-      if (currentStep === 1) {
-        console.log("Placeholder: Buscando usuários do setor selecionado...");
-        console.log(
-          "Placeholder: Buscando lista completa de usuários para lançador..."
-        );
-      }
-
       setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
     }
   };
@@ -140,22 +144,34 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
 
   // --- SUBMIT FINAL ---
   const onSubmit = (data: any) => {
-    if (!isTotalValid) return; // Impede envio se soma != 100%
+    if (!isTotalValid) return;
 
-    // Ajuste dos dados para o formato do backend
-    const payload = {
-      ...data,
-      deadline: new Date(data.deadline).toISOString(), // Converte string date para ISO
-      // Converte values numéricos se necessário
+    // Transformação dos dados para o formato do Firestore (snake_case)
+    const payload: any = {
+      title: data.title,
+      description: data.description,
+      status: "pending", // Status inicial padrão
+      priority: data.priority,
+      progress: 0,
+      deadline: Timestamp.fromDate(new Date(data.deadline)), // Converte para Timestamp do Firestore
+      frequency: data.frequency,
+      inputType: data.inputType,
+
+      // Mapeamento dos relacionamentos (Form -> Firestore)
+      sector_id: data.sectorId,
+      responsible_id: data.responsibleId,
+      launcher_id: data.launcherId,
+
+      // O creator_id é injetado automaticamente pelo hook useCreateGoal usando o AuthContext
+
+      // Tratamento dos níveis
       levels: data.levels.map((l: any) => ({
         targetValue:
           data.inputType === "numeric" ? Number(l.targetValue) : l.targetValue,
         percentage: Number(l.percentage),
       })),
-      // Dados mockados para os selects que ainda não têm backend real conectado neste form
-      responsibleName: "Nome Simulado (Resp)",
-      launcherName: "Nome Simulado (Launch)",
-      creatorId: "current-user-uid", // O hook useCreateGoal já deve injetar isso, mas garantindo
+
+      launches: [], // Inicializa array vazio
     };
 
     createGoal(payload, {
@@ -186,7 +202,7 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
           </SheetDescription>
         </SheetHeader>
 
-        {/* CORPO DO FORMULÁRIO (Scrollável) */}
+        {/* CORPO DO FORMULÁRIO */}
         <ScrollArea className="flex-1">
           <form
             id="create-goal-form"
@@ -264,6 +280,7 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
             {/* --- ETAPA 2: PESSOAS E SETORES --- */}
             {currentStep === 1 && (
               <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-300">
+                {/* Seleção de Setor */}
                 <div className="space-y-2">
                   <Label>
                     Setor Responsável <span className="text-red-500">*</span>
@@ -271,29 +288,34 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
                   <Select
                     onValueChange={(v) => {
                       setValue("sectorId", v);
-                      console.log(
-                        `Log: Setor alterado para ${v}. Buscando usuários...`
-                      );
+                      setValue("responsibleId", ""); // Reseta responsável ao mudar setor
                     }}
+                    value={watch("sectorId")}
                   >
                     <SelectTrigger className="bg-background">
-                      <SelectValue placeholder="Selecione um setor" />
+                      <SelectValue
+                        placeholder={
+                          isLoadingSectors
+                            ? "Carregando setores..."
+                            : "Selecione um setor"
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ti">
-                        Tecnologia da Informação
-                      </SelectItem>
-                      <SelectItem value="rh">Recursos Humanos</SelectItem>
-                      <SelectItem value="comercial">Comercial</SelectItem>
+                      {sectors?.map((sector) => (
+                        <SelectItem key={sector.id} value={sector.id}>
+                          {sector.name} ({sector.acronym})
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
-                  {/* Input oculto para validação do hook-form */}
                   <input
                     type="hidden"
                     {...register("sectorId", { required: true })}
                   />
                 </div>
 
+                {/* Seleção de Responsável (Filtrado pelo Setor) */}
                 <div className="space-y-2">
                   <Label>
                     Responsável pela Meta{" "}
@@ -301,24 +323,31 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
                   </Label>
                   <Select
                     onValueChange={(v) => setValue("responsibleId", v)}
-                    disabled={!watch("sectorId")}
+                    value={watch("responsibleId")}
+                    disabled={!selectedSectorId || isLoadingSectorUsers}
                   >
                     <SelectTrigger className="bg-background">
                       <SelectValue
                         placeholder={
-                          !watch("sectorId")
+                          !selectedSectorId
                             ? "Selecione o setor primeiro"
+                            : isLoadingSectorUsers
+                            ? "Carregando usuários..."
                             : "Selecione o responsável"
                         }
                       />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="uid-user-1">
-                        João Silva (TI)
-                      </SelectItem>
-                      <SelectItem value="uid-user-2">
-                        Maria Santos (TI)
-                      </SelectItem>
+                      {sectorUsers?.map((user) => (
+                        <SelectItem key={user.uid} value={user.uid}>
+                          {user.name}
+                        </SelectItem>
+                      ))}
+                      {sectorUsers?.length === 0 && (
+                        <div className="p-2 text-xs text-muted-foreground text-center">
+                          Nenhum usuário encontrado neste setor.
+                        </div>
+                      )}
                     </SelectContent>
                   </Select>
                   <input
@@ -330,18 +359,30 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
                   </p>
                 </div>
 
+                {/* Seleção de Lançador (Todos os Usuários) */}
                 <div className="space-y-2">
                   <Label>
                     Lançador dos Dados <span className="text-red-500">*</span>
                   </Label>
-                  <Select onValueChange={(v) => setValue("launcherId", v)}>
+                  <Select
+                    onValueChange={(v) => setValue("launcherId", v)}
+                    value={watch("launcherId")}
+                  >
                     <SelectTrigger className="bg-background">
-                      <SelectValue placeholder="Selecione quem fará os lançamentos" />
+                      <SelectValue
+                        placeholder={
+                          isLoadingAllUsers
+                            ? "Carregando..."
+                            : "Selecione quem fará os lançamentos"
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="uid-user-1">João Silva</SelectItem>
-                      <SelectItem value="uid-user-2">Maria Santos</SelectItem>
-                      <SelectItem value="uid-gestor">Gabriel Gestor</SelectItem>
+                      {allUsers?.map((user) => (
+                        <SelectItem key={user.uid} value={user.uid}>
+                          {user.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <input
@@ -491,7 +532,7 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
                         size="icon"
                         className="mb-0.5 text-muted-foreground hover:text-red-500 hover:bg-red-50"
                         onClick={() => remove(index)}
-                        disabled={fields.length === 1} // Não pode remover o último
+                        disabled={fields.length === 1}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

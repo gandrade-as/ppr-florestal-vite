@@ -31,6 +31,7 @@ export const FirestoreUserProfileSchema = z.object({
   ),
   avatarUrl: z.url().optional(),
   sector_id: z.string(),
+  uid: z.string(),
 });
 
 export const HydratedUserProfileSchema = FirestoreUserProfileSchema.omit({
