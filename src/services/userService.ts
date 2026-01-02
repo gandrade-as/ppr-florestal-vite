@@ -1,6 +1,6 @@
 import { db } from "@/lib/firebase/client";
 import { FirestoreUserProfileSchema, type FirestoreUserProfile, type HydratedUserProfile } from "@/types/user"
-import { doc, getDoc, QueryDocumentSnapshot, type FirestoreDataConverter, type SnapshotOptions } from "firebase/firestore"
+import { collection, doc, getDoc, getDocs, query, QueryDocumentSnapshot, where, type FirestoreDataConverter, type SnapshotOptions } from "firebase/firestore"
 import { fetchSectorFromFirestore } from "./sectorService";
 
 export const userConverter: FirestoreDataConverter<FirestoreUserProfile> = {
@@ -59,3 +59,45 @@ export const fetchUserProfileFromFirestore = async (
     throw error;
   }
 };
+
+export const fecthUsersFromfirestore = async (): Promise<FirestoreUserProfile[]> => {
+  try {
+    const usersRef = collection(db, "users").withConverter(userConverter);
+
+    const querySnapshot = await getDocs(usersRef);
+
+    var users: FirestoreUserProfile[] = [];
+
+    for (const docSnap of querySnapshot.docs) {
+      users.push(docSnap.data());
+    }
+
+    return users;
+  } catch (error) {
+    console.error("Erro no fetchUsersFromFirestore:", error);
+    throw error;
+  }
+}
+
+export const fetchUsersBySectorFromFirestore = async (
+  sector_id: string
+): Promise<FirestoreUserProfile[]> => {
+  try {
+    const usersRef = collection(db, "users").withConverter(userConverter);
+
+    const q = query(usersRef, where("sector_id", "==", sector_id));
+
+    const querySnapshot = await getDocs(q);
+
+    var users: FirestoreUserProfile[] = [];
+
+    for (const docSnap of querySnapshot.docs) {
+      users.push(docSnap.data());
+    }
+
+    return users;
+  } catch (error) {
+    console.error("Erro no fetchUsersBySectorFromFirestore:", error);
+    throw error;
+  }
+}

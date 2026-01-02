@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
-import { fetchUserProfileFromFirestore } from "@/services/userService";
+import { fecthUsersFromfirestore, fetchUserProfileFromFirestore, fetchUsersBySectorFromFirestore } from "@/services/userService";
 // import api from "@/lib/api";
 // import type { UserProfile } from "@/types/user";
 
@@ -16,6 +16,23 @@ export function useUserProfile() {
     queryKey: ["user-profile", user?.uid],
     queryFn: () => fetchUserProfileFromFirestore(user!.uid),
     enabled: !!user?.uid,
+    staleTime: 1000 * 60 * 30,
+  });
+}
+
+export function useUsers() {
+  return useQuery({
+    queryKey: ["users"],
+    queryFn: () => fecthUsersFromfirestore(),
+    staleTime: 1000 * 60 * 30
+  })
+}
+
+export function useSectorUsers(sectorId?: string) {
+  return useQuery({
+    queryKey: ["sector-users", sectorId],
+    queryFn: () => fetchUsersBySectorFromFirestore(sectorId!),
+    enabled: !!sectorId,
     staleTime: 1000 * 60 * 30,
   });
 }
