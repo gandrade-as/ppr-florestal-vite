@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import type { UserProfile } from "@/types/user";
 import { fetchUserProfileFromFirestore } from "@/services/userService";
+// import api from "@/lib/api";
+// import type { UserProfile } from "@/types/user";
 
 // const fetchUserProfile = async (uid: string): Promise<UserProfile> => {
 //   const { data } = await api.get(`/users/${uid}`);

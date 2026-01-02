@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import type { Goal } from "@/types/goal";
+import type { HydratedGoal } from "@/types/goal";
 
 // Mapeamento de Cores (pode ficar aqui ou em um utils/constants.ts)
 const statusMap: Record<
@@ -23,7 +23,7 @@ const statusMap: Record<
   canceled: { label: "Cancelada", color: "destructive" },
 };
 
-export function GoalCard({ goal }: { goal: Goal }) {
+export function GoalCard({ goal }: { goal: HydratedGoal }) {
   const statusInfo = statusMap[goal.status] || statusMap.pending;
 
   return (
@@ -42,11 +42,11 @@ export function GoalCard({ goal }: { goal: Goal }) {
         </CardTitle>
 
         {/* NOVO: Mostra quem criou a meta se tiver o nome disponível */}
-        {goal.creatorName && (
+        {goal.creator.name && (
           <div className="flex items-center text-xs text-muted-foreground mt-1">
             <span className="mr-1">Atribuído por:</span>
             <span className="font-medium text-foreground">
-              {goal.creatorName}
+              {goal.creator.name}
             </span>
           </div>
         )}
@@ -71,13 +71,13 @@ export function GoalCard({ goal }: { goal: Goal }) {
       <CardFooter className="pt-4 border-t bg-muted/20 flex justify-between">
         <div className="flex items-center text-sm text-muted-foreground">
           <Calendar className="mr-2 h-4 w-4" />
-          <span>{new Date(goal.deadline).toLocaleDateString("pt-BR")}</span>
+          <span>{goal.deadline.toDate().toLocaleDateString("pt-BR")}</span>
         </div>
 
         {/* Dica visual se outra pessoa for lançar */}
-        {goal.launcherId !== goal.responsibleId && (
+        {goal.launcher.id !== goal.responsible.id && (
           <div
-            title={`Lançamento feito por: ${goal.launcherName}`}
+            title={`Lançamento feito por: ${goal.launcher.name}`}
             className="flex items-center text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full"
           >
             <User className="w-3 h-3 mr-1" />

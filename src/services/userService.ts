@@ -1,7 +1,7 @@
 import { db } from "@/lib/firebase/client";
 import { FirestoreUserProfileSchema, type FirestoreUserProfile, type HydratedUserProfile } from "@/types/user"
 import { doc, getDoc, QueryDocumentSnapshot, type FirestoreDataConverter, type SnapshotOptions } from "firebase/firestore"
-import { sectorConverter } from "./sectorService";
+import { fetchSectorFromFirestore } from "./sectorService";
 
 export const userConverter: FirestoreDataConverter<FirestoreUserProfile> = {
   toFirestore: (user: FirestoreUserProfile) => user,
@@ -37,12 +37,9 @@ export const fetchUserProfileFromFirestore = async (
 
     const userData = userSnap.data();
 
-    const sectorRef = doc(db, "sectors", userData.sector_id).withConverter(
-      sectorConverter
-    );
-    const sectorSnap = await getDoc(sectorRef);
+    const sector = await fetchSectorFromFirestore(userData.sector_id);
 
-    if (!sectorSnap.exists()) {
+    if (!sector) {
       throw new Error(
         `Setor vinculado (${userData.sector_id}) não encontrado.`
       );
@@ -53,7 +50,7 @@ export const fetchUserProfileFromFirestore = async (
     const finalUser: HydratedUserProfile = {
       id: userSnap.id,
       ...userProps,
-      sector: sectorSnap.data(), 
+      sector: sector, 
     };
 
     return finalUser;
