@@ -175,6 +175,29 @@ export const fetchGoalsByCreatorFromFirestore = async (
   }
 };
 
+export const fetchPendingGoalsFromFirestore = async (): Promise<HydratedGoal[]> => {
+  try {
+    const goalsRef = collection(db, "goals").withConverter(goalConverter);
+
+    const q = query(goalsRef, where("status", "==", "pending"));
+
+    const querySnapshot = await getDocs(q);
+
+    var goals: HydratedGoal[] = [];
+
+    for (const docSnap of querySnapshot.docs) {
+      hydrateGoal(docSnap.data(), docSnap.id).then((goalData) =>
+        goals.push(goalData)
+      );
+    }
+
+    return goals;
+  } catch (error) {
+    console.error("Erro no fetchPendingGoalsFromFirestore:", error);
+    throw error;
+  }
+};
+
 export const createGoalInFirestore = async (
   goalData: FirestoreGoal
 ): Promise<string> => {

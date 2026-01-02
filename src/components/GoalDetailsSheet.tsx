@@ -5,7 +5,7 @@ import {
   useCreateLaunch,
   useUpdateLaunch,
 } from "@/hooks/useLaunches";
-import { type Goal, type Launch, getMaxLaunches } from "@/types/goal";
+import { type HydratedGoal, type Launch, getMaxLaunches } from "@/types/goal";
 
 import {
   Sheet,
@@ -29,7 +29,7 @@ import {
 import { cn } from "@/lib/utils";
 
 interface GoalDetailsSheetProps {
-  goal: Goal | null;
+  goal: HydratedGoal | null;
   isOpen: boolean;
   onClose: () => void;
   readOnly?: boolean;

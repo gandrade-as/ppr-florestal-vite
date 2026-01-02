@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 // import api from "@/lib/api";
 import type { FirestoreGoal } from "@/types/goal";
 import { useAuth } from "@/context/AuthContext";
-import { createGoalInFirestore, fetchGoalsByCreatorFromFirestore, fetchGoalsByLauncherFromFirestore, fetchGoalsByResponsibleFromFirestore, fetchGoalsBySectorFromFirestore } from "@/services/goalService";
+import { createGoalInFirestore, fetchGoalsByCreatorFromFirestore, fetchGoalsByLauncherFromFirestore, fetchGoalsByResponsibleFromFirestore, fetchGoalsBySectorFromFirestore, fetchPendingGoalsFromFirestore } from "@/services/goalService";
 
 // const fetchUserGoals = async (uid: string): Promise<Goal[]> => {
 //   const { data } = await api.get(`/goals/${uid}`);
@@ -69,6 +69,14 @@ export function useCreatedGoals() {
     queryKey: ["created-goals", user?.uid],
     queryFn: () => fetchGoalsByCreatorFromFirestore(user!.uid),
     enabled: !!user?.uid,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function usePendingGoals() {
+  return useQuery({
+    queryKey: ["pending-goals"],
+    queryFn: () => fetchPendingGoalsFromFirestore(),
     staleTime: 1000 * 60 * 5,
   });
 }

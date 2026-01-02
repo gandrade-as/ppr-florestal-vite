@@ -10,11 +10,11 @@ import DashboardPage from "@/pages/Dashboard";
 
 // ... imports anteriores
 import DashboardLayout from "@/layouts/DashboardLayout"; // Importe o novo layout
-import GoalsPage from "./pages/Goals";
-import SectorGoalsPage from "./pages/sector/SectorGoals";
-import LauncherGoalsPage from "./pages/LauncherGoals";
+import SectorGoalsPage from "./pages/goals/SectorGoals";
 import EvaluationPage from "./pages/admin/EvaluationPage";
-import CreatedGoalsPage from "./pages/admin/CreatedGoals";
+import CreatedGoalsPage from "./pages/goals/CreatedGoals";
+import MyGoalsPage from "./pages/goals/MyGoals";
+import LaunchableGoalsPage from "./pages/goals/LaunchableGoals";
 
 // 1. Instância do Cliente (Configuração Otimizada)
 const queryClient = new QueryClient({
@@ -50,8 +50,8 @@ export default function App() {
                   element={<Navigate to="/dashboard" replace />}
                 />
                 <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/metas" element={<GoalsPage />} />
-                <Route path="/lancamentos" element={<LauncherGoalsPage />} />
+                <Route path="/metas" element={<MyGoalsPage />} />
+                <Route path="/lancamentos" element={<LaunchableGoalsPage />} />
                 {/* <Route path="/perfil" element={<ProfilePage />} /> */}
 
                 <Route
