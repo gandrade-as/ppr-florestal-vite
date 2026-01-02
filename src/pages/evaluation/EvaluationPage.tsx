@@ -1,26 +1,24 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
-import { Users } from "lucide-react";
-import { useSectorGoals } from "@/hooks/useGoals";
+import { Scale } from "lucide-react";
+import { usePendingGoals } from "@/hooks/useGoals";
 import { GoalPageTemplate } from "@/components/goals/GoalPageTemplate";
 import { GoalDetailsSheet } from "@/components/GoalDetailsSheet";
 import type { HydratedGoal } from "@/types/goal";
 
-export default function SectorGoalsPage() {
-  const { sectorId } = useParams();
-  const { data: goals, isLoading, isError } = useSectorGoals(sectorId);
+export default function EvaluationPage() {
+  const { data: goals, isLoading, isError } = usePendingGoals();
   const [selectedGoal, setSelectedGoal] = useState<HydratedGoal | null>(null);
 
   return (
     <>
       <GoalPageTemplate
-        title="Metas do Setor"
-        description="Visão gerencial das metas ativas da sua equipe."
-        icon={Users}
+        title="Painel de Avaliação"
+        description="Visualize e audite as metas pendentes de aprovação."
+        icon={Scale}
         goals={goals}
         isLoading={isLoading}
         isError={isError}
-        emptyMessage="Nenhuma meta encontrada para este setor."
+        emptyMessage="Nenhuma meta pendente de avaliação no momento."
         onGoalClick={setSelectedGoal}
       />
 
@@ -28,7 +26,7 @@ export default function SectorGoalsPage() {
         goal={selectedGoal}
         isOpen={!!selectedGoal}
         onClose={() => setSelectedGoal(null)}
-        mode="readonly"
+        mode="evaluator"
       />
     </>
   );

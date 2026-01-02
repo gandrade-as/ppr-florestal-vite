@@ -16,6 +16,7 @@ export const AuditMessageSchema = z.object({
 });
 
 export const FirestoreLaunchSchema = z.object({
+  id: z.string(),
   seq: z.number(),
   thread: z.array(z.union([LauncherMessageSchema, AuditMessageSchema])),
   status: z.enum(["pending", "approved"]),

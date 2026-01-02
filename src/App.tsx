@@ -11,7 +11,7 @@ import DashboardPage from "@/pages/Dashboard";
 // ... imports anteriores
 import DashboardLayout from "@/layouts/DashboardLayout"; // Importe o novo layout
 import SectorGoalsPage from "./pages/goals/SectorGoals";
-import EvaluationPage from "./pages/admin/EvaluationPage";
+import EvaluationPage from "./pages/evaluation/EvaluationPage";
 import CreatedGoalsPage from "./pages/goals/CreatedGoals";
 import MyGoalsPage from "./pages/goals/MyGoals";
 import LaunchableGoalsPage from "./pages/goals/LaunchableGoals";

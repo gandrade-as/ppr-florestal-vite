@@ -19,13 +19,14 @@ export default function LaunchableGoalsPage() {
         isLoading={isLoading}
         isError={isError}
         emptyMessage="Nenhuma meta pendente de lançamento."
-        onGoalClick={setSelectedGoal} // O clique abre o Sheet
+        onGoalClick={setSelectedGoal}
       />
 
       <GoalDetailsSheet
         goal={selectedGoal}
         isOpen={!!selectedGoal}
         onClose={() => setSelectedGoal(null)}
+        mode="launcher"
       />
     </>
   );
