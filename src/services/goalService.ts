@@ -191,17 +191,15 @@ export const fetchPendingGoalsFromFirestore = async (): Promise<HydratedGoal[]> 
 };
 
 export const fetchGoalFromFirestore = async (
-  goal_id: string,
-  hydrate: boolean = true
-): Promise<HydratedGoal | FirestoreGoal> => {
+  goal_id: string
+): Promise<HydratedGoal> => {
   try {
     const goalRef = doc(db, "goals", goal_id).withConverter(goalConverter);
 
     const docSnap = await getDoc(goalRef);
 
     if (docSnap.exists()) {
-      if(hydrate) return hydrateGoal(docSnap.data(), docSnap.id);
-      return docSnap.data();
+      return hydrateGoal(docSnap.data(), docSnap.id);
     } else {
       throw new Error(`Documento com id ${goal_id} não encontrado.`);
     }

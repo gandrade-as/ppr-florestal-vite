@@ -26,3 +26,6 @@ export const FirestoreLaunchSchema = z.object({
   created_at: z.instanceof(Timestamp),
   updated_at: z.instanceof(Timestamp),
 });
+
+export type FirestoreLaunch = z.infer<typeof FirestoreLaunchSchema>
+export type LauncherMessage = z.infer<typeof LauncherMessageSchema>

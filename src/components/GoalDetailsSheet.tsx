@@ -15,7 +15,14 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { z } from "zod";
+import { Timestamp } from "firebase/firestore";
 
+// Hooks e Contextos
+import { useAddLaunchMessage } from "@/hooks/useLaunches";
+import { useGoal } from "@/hooks/useGoals";
+
+// Componentes UI
 import {
   Sheet,
   SheetContent,
@@ -29,11 +36,19 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
+// Tipos
 import type { HydratedGoal } from "@/types/goal";
 import type { LauncherMessageSchema, AuditMessageSchema } from "@/types/launch";
-import { z } from "zod";
+import { useUserProfile } from "@/hooks/useUserProfile";
 
 // Tipos Inferidos
 type LauncherMessage = z.infer<typeof LauncherMessageSchema>;
@@ -49,27 +64,27 @@ interface GoalDetailsSheetProps {
 }
 
 export function GoalDetailsSheet({
-  goal,
+  goal: initialGoal,
   isOpen,
   onClose,
   mode = "readonly",
 }: GoalDetailsSheetProps) {
   const [selectedLaunchId, setSelectedLaunchId] = useState<string | null>(null);
 
-  // Reseta a seleção quando fecha o modal ou muda a meta
+  const { data: freshGoal } = useGoal(initialGoal?.id);
+  const goal = freshGoal || initialGoal;
+
   useEffect(() => {
     if (!isOpen) setSelectedLaunchId(null);
-  }, [isOpen, goal]);
+  }, [isOpen, goal?.id]);
 
   if (!goal) return null;
 
-  // Encontra o lançamento selecionado para passar para a view de thread
   const selectedLaunch = goal.launches?.find((l) => l.id === selectedLaunchId);
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-full sm:w-135 p-0 flex flex-col h-full bg-slate-50/50">
-        {/* RENDERIZAÇÃO CONDICIONAL: LISTA vs THREAD */}
+      <SheetContent className="w-full sm:w-135 p-0 flex flex-col h-full bg-slate-50/50 z-50">
         {selectedLaunchId && selectedLaunch ? (
           <LaunchThread
             launch={selectedLaunch}
@@ -100,16 +115,15 @@ interface GoalOverviewProps {
 }
 
 function GoalOverview({ goal, mode, onSelectLaunch }: GoalOverviewProps) {
-  // Ordena lançamentos do mais recente para o mais antigo na lista geral
   const sortedLaunches = [...(goal.launches || [])].sort(
     (a, b) => b.seq - a.seq
   );
 
-  const canCreateLaunch = mode !== "readonly"; // Launcher e Evaluator podem criar (conforme solicitado)
+  const canCreateLaunch = mode !== "readonly";
 
   return (
     <>
-      <SheetHeader className="px-6 py-6 bg-background border-b shadow-sm z-10">
+      <SheetHeader className="px-6 py-6 bg-background border-b shadow-sm z-10 shrink-0">
         <div className="flex justify-between items-start gap-2">
           <div>
             <Badge variant="secondary" className="mb-2">
@@ -133,8 +147,8 @@ function GoalOverview({ goal, mode, onSelectLaunch }: GoalOverviewProps) {
         </div>
       </SheetHeader>
 
-      <ScrollArea className="flex-1 px-6 py-6">
-        {/* Cabeçalho da Lista */}
+      {/* CORREÇÃO AQUI: Adicionado min-h-0 */}
+      <ScrollArea className="flex-1 min-h-0 px-6 py-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-lg text-slate-800 flex items-center gap-2">
             <FileText className="h-5 w-5 text-muted-foreground" />
@@ -153,7 +167,6 @@ function GoalOverview({ goal, mode, onSelectLaunch }: GoalOverviewProps) {
           )}
         </div>
 
-        {/* Lista de Cards */}
         <div className="flex flex-col gap-3 pb-6">
           {sortedLaunches.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-center border-2 border-dashed rounded-xl bg-slate-50">
@@ -194,7 +207,6 @@ function LaunchCard({
   inputType: string;
   onClick: () => void;
 }) {
-  // Status Colors
   const statusConfig = {
     pending: {
       label: "Em Análise",
@@ -214,7 +226,6 @@ function LaunchCard({
     statusConfig[launch.status as keyof typeof statusConfig] ||
     statusConfig.pending;
 
-  // Última mensagem para preview
   const lastMsg =
     Array.isArray(launch.thread) && launch.thread.length > 0
       ? launch.thread[launch.thread.length - 1]
@@ -222,6 +233,11 @@ function LaunchCard({
 
   const lastMsgContent =
     lastMsg && "content" in lastMsg ? lastMsg.content : "Atualização de status";
+
+  const displayValue =
+    launch.last_achievement_level !== undefined
+      ? launch.last_achievement_level
+      : lastMsg?.achievement_level;
 
   return (
     <Card
@@ -246,7 +262,7 @@ function LaunchCard({
           </div>
           <span className="text-[10px] text-muted-foreground flex items-center gap-1">
             <Calendar className="h-3 w-3" />
-            {format(new Date(), "dd/MM/yyyy")} {/* Placeholder data */}
+            {format(launch.created_at?.toDate() || new Date(), "dd/MM/yyyy")}
           </span>
         </div>
 
@@ -263,8 +279,8 @@ function LaunchCard({
                 ? new Intl.NumberFormat("pt-BR", {
                     style: "currency",
                     currency: "BRL",
-                  }).format(Number(lastMsg?.achievement_level ?? 0))
-                : lastMsg?.achievement_level ?? ""}
+                  }).format(Number(displayValue || 0))
+                : displayValue ?? "—"}
             </p>
           </div>
         </div>
@@ -290,30 +306,65 @@ interface LaunchThreadProps {
 }
 
 function LaunchThread({ launch, goal, mode, onBack }: LaunchThreadProps) {
+  const { data: user } = useUserProfile();
+  const { mutate: sendMessage, isPending } = useAddLaunchMessage();
+
   const [newMessage, setNewMessage] = useState("");
+  const [selectedLevel, setSelectedLevel] = useState<
+    string | number | undefined
+  >(launch.last_achievement_level || undefined);
+
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [launch]);
+  }, [launch.thread?.length]);
 
   const handleSendMessage = () => {
-    if (!newMessage) return;
-    console.log("Enviando mensagem na thread:", newMessage);
-    setNewMessage("");
+    if (!newMessage.trim()) return;
+
+    if (mode === "launcher" && selectedLevel === undefined) {
+      alert("Por favor, selecione o nível de atingimento atual.");
+      return;
+    }
+
+    const messagePayload = {
+      sender_name: user?.name || "Usuário",
+      achievement_level: selectedLevel!,
+      content: newMessage,
+      timestamp: Timestamp.now(),
+      attachments: [],
+    };
+
+    sendMessage(
+      {
+        goalId: goal.id,
+        launchId: launch.id,
+        message: messagePayload,
+        newLevel: selectedLevel!,
+      },
+      {
+        onSuccess: () => {
+          setNewMessage("");
+        },
+        onError: (error) => {
+          console.error("Erro ao enviar:", error);
+          alert("Erro ao enviar mensagem. Tente novamente.");
+        },
+      }
+    );
   };
 
-  const handleEvaluate = (status: string) => {
+  const handleEvaluate = (status: "approved" | "rejected") => {
     console.log("Avaliando:", status, "Justificativa:", newMessage);
     setNewMessage("");
   };
 
   return (
     <>
-      {/* Header com Botão Voltar */}
-      <div className="px-4 py-3 bg-background border-b shadow-sm z-10 flex items-center gap-3">
+      <div className="px-4 py-3 bg-background border-b shadow-sm z-10 flex items-center gap-3 shrink-0">
         <Button
           variant="ghost"
           size="icon"
@@ -337,14 +388,13 @@ function LaunchThread({ launch, goal, mode, onBack }: LaunchThreadProps) {
         </Badge>
       </div>
 
-      {/* Área de Chat */}
-      <ScrollArea className="flex-1 px-4 py-6 bg-slate-50/50">
+      {/* CORREÇÃO AQUI: Adicionado min-h-0 */}
+      <ScrollArea className="flex-1 min-h-0 px-4 py-6 bg-slate-50/50">
         <div className="flex flex-col gap-4 pb-4">
-          {launch.thread.map((msg: any, idx: number) => {
+          {launch.thread?.map((msg: any, idx: number) => {
             const isAuditMsg = "status" in msg;
             let isSelf = false;
 
-            // Lógica visual de "quem sou eu"
             if (mode === "launcher" && !isAuditMsg) isSelf = true;
             if (mode === "evaluator" && isAuditMsg) isSelf = true;
 
@@ -366,71 +416,113 @@ function LaunchThread({ launch, goal, mode, onBack }: LaunchThreadProps) {
         </div>
       </ScrollArea>
 
-      {/* Footer de Ações (Apenas se não for readonly) */}
       {mode !== "readonly" && (
-        <div className="p-4 bg-background border-t mt-auto">
-          <div className="flex flex-col gap-3">
-            {/* Input de Texto */}
-            <div className="relative flex gap-2 items-end">
-              <Input
-                placeholder={
-                  mode === "evaluator"
-                    ? "Escreva uma justificativa..."
-                    : "Adicione um comentário ou anexo..."
-                }
-                className="flex-1 h-12 py-3 bg-slate-50"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-              />
+        <div className="p-4 bg-background border-t mt-auto space-y-3 shrink-0">
+          {mode === "launcher" && (
+            <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border">
+              <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap pl-1">
+                Atingimento Atual:
+              </span>
 
-              {/* Botão Enviar (Launcher) */}
-              {mode === "launcher" && (
-                <Button
-                  size="icon"
-                  className="h-12 w-12"
-                  onClick={handleSendMessage}
-                  disabled={!newMessage}
+              {goal.input_type === "numeric" ? (
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">
+                    R$
+                  </span>
+                  <Input
+                    type="number"
+                    placeholder="0,00"
+                    className="h-8 pl-8 bg-white"
+                    value={selectedLevel as number}
+                    onChange={(e) => setSelectedLevel(Number(e.target.value))}
+                  />
+                </div>
+              ) : (
+                <Select
+                  value={
+                    selectedLevel !== undefined
+                      ? String(selectedLevel)
+                      : undefined
+                  }
+                  onValueChange={(val) => setSelectedLevel(val)}
                 >
-                  <Send className="h-5 w-5" />
-                </Button>
+                  <SelectTrigger className="h-8 bg-white flex-1">
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+
+                  <SelectContent className="z-60">
+                    {goal.levels.map((level, idx) => (
+                      <SelectItem key={idx} value={String(level.targetValue)}>
+                        {level.targetValue} ({level.percentage}%)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
             </div>
+          )}
 
-            {/* Ações do Avaliador */}
-            {mode === "evaluator" && (
-              <div className="flex gap-2 pt-2">
-                <Button
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-2"
-                  onClick={() => handleEvaluate("approved")}
-                >
-                  <ThumbsUp className="h-4 w-4" /> Aprovar
-                </Button>
-                <Button
-                  variant="destructive"
-                  className="flex-1 gap-2"
-                  onClick={() => handleEvaluate("rejected")}
-                >
-                  <ThumbsDown className="h-4 w-4" /> Reprovar
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handleSendMessage}
-                  title="Apenas Comentar"
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
+          <div className="relative flex gap-2 items-end">
+            <Input
+              placeholder={
+                mode === "evaluator"
+                  ? "Escreva uma justificativa..."
+                  : "Adicione um comentário..."
+              }
+              className="flex-1 h-12 py-3 bg-slate-50"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+              disabled={isPending}
+            />
+
+            {mode === "launcher" && (
+              <Button
+                size="icon"
+                className="h-12 w-12"
+                onClick={handleSendMessage}
+                disabled={!newMessage || isPending}
+              >
+                {isPending ? (
+                  <span className="animate-spin text-xs">...</span>
+                ) : (
+                  <Send className="h-5 w-5" />
+                )}
+              </Button>
             )}
           </div>
+
+          {mode === "evaluator" && (
+            <div className="flex gap-2 pt-2">
+              <Button
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-2"
+                onClick={() => handleEvaluate("approved")}
+              >
+                <ThumbsUp className="h-4 w-4" /> Aprovar
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1 gap-2"
+                onClick={() => handleEvaluate("rejected")}
+              >
+                <ThumbsDown className="h-4 w-4" /> Reprovar
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleSendMessage}
+                title="Apenas Comentar"
+                disabled={isPending}
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </>
   );
 }
-
-// --- BUBBLES (Reutilizados do código anterior) ---
 
 function LauncherBubble({
   message,

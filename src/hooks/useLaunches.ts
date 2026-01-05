@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import type { EvaluatePayload, Launch, PendingLaunch } from "@/types/goal";
+import { updateLaunchInFirestore } from "@/services/launchService";
+import type { LauncherMessage } from "@/types/launch";
 
 // Fetch
 const fetchLaunches = async (goalId: string): Promise<Launch[]> => {
@@ -111,6 +113,40 @@ export function useEvaluateLaunch() {
       // Invalida listas específicas de metas se estiverem abertas
       queryClient.invalidateQueries({ queryKey: ["launches"] });
       queryClient.invalidateQueries({ queryKey: ["launcher-goals"] });
+    },
+  });
+}
+
+export function useAddLaunchMessage() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      goalId,
+      launchId,
+      message,
+      newLevel,
+    }: {
+      goalId: string;
+      launchId: string;
+      message: LauncherMessage;
+      newLevel: string | number;
+    }) => {
+      
+      return await updateLaunchInFirestore(goalId, launchId, {
+        newMessage: message,
+        last_achievement_level: newLevel,
+        status: "pending", 
+      });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["launches", variables.goalId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["launcher-goals"] });
+      queryClient.invalidateQueries({ queryKey: ["launches-pending"] });
+      queryClient.invalidateQueries({ queryKey: ["my-goals"] });
+      queryClient.invalidateQueries({ queryKey: ["goal", variables.goalId] });
     },
   });
 }
