@@ -5,12 +5,7 @@ import { useCreateGoal } from "@/hooks/useGoals";
 import { useSectors } from "@/hooks/useSector";
 import { useUsers, useSectorUsers } from "@/hooks/useUserProfile";
 
-import {
-  ChevronRight,
-  ChevronLeft,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { ChevronRight, ChevronLeft, Plus, Trash2 } from "lucide-react";
 
 import {
   Sheet,
@@ -74,7 +69,7 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
 
       // Etapa 3: Configuração
       frequency: "mensal",
-      inputType: "numeric",
+      input_type: "numeric",
 
       // Etapa 4: Níveis
       levels: [{ targetValue: "", percentage: 100 }],
@@ -88,7 +83,7 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
   });
 
   // Watchers
-  const inputType = watch("inputType");
+  const input_type = watch("input_type");
   const levels = watch("levels");
 
   // Observa o setor selecionado para buscar os usuários correspondentes
@@ -125,7 +120,11 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
       title: "Pessoas e Setores",
       fields: ["sectorId", "responsibleId", "launcherId"],
     },
-    { id: "config", title: "Configuração", fields: ["frequency", "inputType"] },
+    {
+      id: "config",
+      title: "Configuração",
+      fields: ["frequency", "input_type"],
+    },
     { id: "levels", title: "Níveis de Avaliação", fields: ["levels"] },
   ];
 
@@ -155,7 +154,7 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
       progress: 0,
       deadline: Timestamp.fromDate(new Date(data.deadline)), // Converte para Timestamp do Firestore
       frequency: data.frequency,
-      inputType: data.inputType,
+      input_type: data.input_type,
 
       // Mapeamento dos relacionamentos (Form -> Firestore)
       sector_id: data.sectorId,
@@ -167,7 +166,7 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
       // Tratamento dos níveis
       levels: data.levels.map((l: any) => ({
         targetValue:
-          data.inputType === "numeric" ? Number(l.targetValue) : l.targetValue,
+          data.input_type === "numeric" ? Number(l.targetValue) : l.targetValue,
         percentage: Number(l.percentage),
       })),
 
@@ -428,11 +427,11 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
                     <div
                       className={cn(
                         "cursor-pointer border rounded-lg p-4 flex flex-col gap-2 hover:border-primary transition-all",
-                        inputType === "numeric"
+                        input_type === "numeric"
                           ? "bg-primary/5 border-primary ring-1 ring-primary"
                           : "bg-background"
                       )}
-                      onClick={() => setValue("inputType", "numeric")}
+                      onClick={() => setValue("input_type", "numeric")}
                     >
                       <span className="font-semibold text-sm">Numérico</span>
                       <span className="text-xs text-muted-foreground">
@@ -443,11 +442,11 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
                     <div
                       className={cn(
                         "cursor-pointer border rounded-lg p-4 flex flex-col gap-2 hover:border-primary transition-all",
-                        inputType === "options"
+                        input_type === "options"
                           ? "bg-primary/5 border-primary ring-1 ring-primary"
                           : "bg-background"
                       )}
-                      onClick={() => setValue("inputType", "options")}
+                      onClick={() => setValue("input_type", "options")}
                     >
                       <span className="font-semibold text-sm">
                         Classes / Opções
@@ -457,7 +456,7 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
                       </span>
                     </div>
                   </div>
-                  <input type="hidden" {...register("inputType")} />
+                  <input type="hidden" {...register("input_type")} />
                 </div>
               </div>
             )}
@@ -482,14 +481,14 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
                     >
                       <div className="flex-1 space-y-1">
                         <Label className="text-xs text-muted-foreground">
-                          {inputType === "numeric"
+                          {input_type === "numeric"
                             ? "Valor Alvo"
                             : "Descrição da Classe"}
                         </Label>
                         <Input
-                          type={inputType === "numeric" ? "number" : "text"}
+                          type={input_type === "numeric" ? "number" : "text"}
                           placeholder={
-                            inputType === "numeric"
+                            input_type === "numeric"
                               ? "Ex: 1000"
                               : "Ex: Concluído"
                           }

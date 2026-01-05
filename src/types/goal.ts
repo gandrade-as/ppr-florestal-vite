@@ -96,7 +96,7 @@ export const FirestoreGoalSchema = z.object({
   frequency: z.enum(["mensal", "trimestral", "semestral"]),
   launches: z.array(FirestoreLaunchSchema),
 
-  inputType: z.enum(["numeric", "options"]),
+  input_type: z.enum(["numeric", "options"]),
   levels: z.array(AchievementLevelSchema),
 
   creator_id: z.string(),
@@ -104,24 +104,22 @@ export const FirestoreGoalSchema = z.object({
   launcher_id: z.string(),
 
   sector_id: z.string(),
-})
+});
 
-export const HydratedGoalSchema = FirestoreGoalSchema
-.omit({
+export const HydratedGoalSchema = FirestoreGoalSchema.omit({
   creator_id: true,
   responsible_id: true,
   launcher_id: true,
   sector_id: true,
   launches: true,
-})
-.extend({
+}).extend({
   id: z.string(),
   creator: HydratedUserProfileSchema,
   responsible: HydratedUserProfileSchema,
   launcher: HydratedUserProfileSchema,
   sector: FirestoreSectorSchema,
   launches: z.array(FirestoreLaunchSchema),
-})
+});
 
 export type FirestoreGoal = z.infer<typeof FirestoreGoalSchema>;
 

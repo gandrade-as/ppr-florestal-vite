@@ -32,10 +32,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 import type { HydratedGoal } from "@/types/goal";
-import type {
-  LauncherMessageSchema,
-  AuditMessageSchema,
-} from "@/types/launch";
+import type { LauncherMessageSchema, AuditMessageSchema } from "@/types/launch";
 import { z } from "zod";
 
 // Tipos Inferidos
@@ -177,7 +174,7 @@ function GoalOverview({ goal, mode, onSelectLaunch }: GoalOverviewProps) {
               <LaunchCard
                 key={launch.id}
                 launch={launch}
-                inputType={goal.inputType}
+                inputType={goal.input_type}
                 onClick={() => onSelectLaunch(launch.id)}
               />
             ))
@@ -218,9 +215,13 @@ function LaunchCard({
     statusConfig.pending;
 
   // Última mensagem para preview
-  const lastMsg = launch.thread[launch.thread.length - 1];
+  const lastMsg =
+    Array.isArray(launch.thread) && launch.thread.length > 0
+      ? launch.thread[launch.thread.length - 1]
+      : null;
+
   const lastMsgContent =
-    "content" in lastMsg ? lastMsg.content : "Atualização de status";
+    lastMsg && "content" in lastMsg ? lastMsg.content : "Atualização de status";
 
   return (
     <Card
@@ -262,8 +263,8 @@ function LaunchCard({
                 ? new Intl.NumberFormat("pt-BR", {
                     style: "currency",
                     currency: "BRL",
-                  }).format(Number(lastMsg.achievement_level || 0))
-                : lastMsg.achievement_level}
+                  }).format(Number(lastMsg?.achievement_level ?? 0))
+                : lastMsg?.achievement_level ?? ""}
             </p>
           </div>
         </div>
