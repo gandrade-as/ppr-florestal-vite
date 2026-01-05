@@ -22,6 +22,7 @@ export const FirestoreLaunchSchema = z.object({
   status: z.enum(["pending", "approved"]),
   deadline: z.instanceof(Timestamp),
   updated_by: z.string(),
+  last_achievement_level: z.union([z.string(), z.number()]).optional(),
   created_at: z.instanceof(Timestamp),
   updated_at: z.instanceof(Timestamp),
 });
