@@ -5,7 +5,8 @@ import {
   createLaunchInFirestore,
 } from "@/services/launchService";
 
-// ... (Mantenha os fetchers como estão ou migre-os depois se quiser abandonar o api.get)
+// --- FETCHERS ---
+
 const fetchLaunches = async (goalId: string): Promise<any[]> => {
   const { data } = await api.get(`/goals/${goalId}/launches`);
   return data;
@@ -16,7 +17,26 @@ const fetchPendingLaunches = async (): Promise<any[]> => {
   return data;
 };
 
-// ... (useGoalLaunches permanece igual)
+// --- FUNÇÃO AUXILIAR DE INVALIDAÇÃO ---
+// Centraliza a lógica para não esquecer nenhuma lista
+const invalidateAllGoalQueries = (queryClient: any, goalId: string) => {
+  // 1. Dados da meta individual e seus lançamentos (para o Sheet aberto)
+  queryClient.invalidateQueries({ queryKey: ["goal", goalId] });
+  queryClient.invalidateQueries({ queryKey: ["launches", goalId] });
+
+  // 2. Listas de Metas (para atualizar barra de progresso nos Cards)
+  queryClient.invalidateQueries({ queryKey: ["my-goals"] });
+  queryClient.invalidateQueries({ queryKey: ["launcher-goals"] });
+  queryClient.invalidateQueries({ queryKey: ["created-goals"] });
+  queryClient.invalidateQueries({ queryKey: ["sector-goals"] });
+  queryClient.invalidateQueries({ queryKey: ["pending-goals"] });
+
+  // 3. Listas de Auditoria (para avaliadores)
+  queryClient.invalidateQueries({ queryKey: ["launches-pending"] });
+};
+
+// --- HOOKS ---
+
 export function useGoalLaunches(goalId: string, enabled: boolean = true) {
   return useQuery({
     queryKey: ["launches", goalId],
@@ -25,9 +45,6 @@ export function useGoalLaunches(goalId: string, enabled: boolean = true) {
   });
 }
 
-/**
- * Hook refatorado para criar lançamentos diretamente no Firestore.
- */
 export function useCreateLaunch() {
   const queryClient = useQueryClient();
 
@@ -45,22 +62,15 @@ export function useCreateLaunch() {
         updated_by: string;
       };
     }) => {
-      // Agora chama o serviço do Firestore
       return await createLaunchInFirestore(goalId, data);
     },
     onSuccess: (_, variables) => {
-      // Invalidações importantes para atualizar a tela
-      queryClient.invalidateQueries({
-        queryKey: ["launches", variables.goalId],
-      });
-      queryClient.invalidateQueries({ queryKey: ["goal", variables.goalId] }); // Atualiza o progresso da meta
-      queryClient.invalidateQueries({ queryKey: ["launcher-goals"] });
-      queryClient.invalidateQueries({ queryKey: ["my-goals"] });
+      // Usa a função centralizada para garantir que TUDO atualize
+      invalidateAllGoalQueries(queryClient, variables.goalId);
     },
   });
 }
 
-// ... (useUpdateLaunch e usePendingLaunches permanecem iguais à última refatoração)
 export function useUpdateLaunch() {
   const queryClient = useQueryClient();
 
@@ -82,13 +92,7 @@ export function useUpdateLaunch() {
       return await updateLaunchInFirestore(goalId, launchId, data);
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ["launches", variables.goalId],
-      });
-      queryClient.invalidateQueries({ queryKey: ["goal", variables.goalId] });
-      queryClient.invalidateQueries({ queryKey: ["launches-pending"] });
-      queryClient.invalidateQueries({ queryKey: ["my-goals"] });
-      queryClient.invalidateQueries({ queryKey: ["launcher-goals"] });
+      invalidateAllGoalQueries(queryClient, variables.goalId);
     },
   });
 }
