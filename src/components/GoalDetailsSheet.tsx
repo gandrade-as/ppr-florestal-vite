@@ -1,26 +1,26 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
-  Send,
-  Paperclip,
   FileText,
-  CheckCircle2,
-  XCircle,
-  ThumbsUp,
-  ThumbsDown,
   ChevronLeft,
-  Plus,
   Calendar,
   DollarSign,
   ArrowRight,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Save,
+  ThumbsUp,
+  ThumbsDown,
+  Plus,
 } from "lucide-react";
 import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { z } from "zod";
-import { Timestamp } from "firebase/firestore";
 
-// Hooks e Contextos
-import { useAddLaunchMessage } from "@/hooks/useLaunches";
-import { useGoal } from "@/hooks/useGoals";
+// Hooks e Tipos
+import { useUpdateLaunch, useCreateLaunch } from "@/hooks/useLaunches"; //
+import { useGoal } from "@/hooks/useGoals"; //
+import { useUserProfile } from "@/hooks/useUserProfile"; //
+import { getMaxLaunches, type HydratedGoal } from "@/types/goal"; //
+import type { FirestoreLaunch } from "@/types/launch"; //
 
 // Componentes UI
 import {
@@ -33,9 +33,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -44,15 +44,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-
-// Tipos
-import type { HydratedGoal } from "@/types/goal";
-import type { LauncherMessageSchema, AuditMessageSchema } from "@/types/launch";
-import { useUserProfile } from "@/hooks/useUserProfile";
-
-// Tipos Inferidos
-type LauncherMessage = z.infer<typeof LauncherMessageSchema>;
-type AuditMessage = z.infer<typeof AuditMessageSchema>;
 
 export type SheetMode = "readonly" | "launcher" | "evaluator";
 
@@ -70,13 +61,18 @@ export function GoalDetailsSheet({
   mode = "readonly",
 }: GoalDetailsSheetProps) {
   const [selectedLaunchId, setSelectedLaunchId] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
+  // Sincronização com o Firestore via TanStack Query
   const { data: freshGoal } = useGoal(initialGoal?.id);
   const goal = freshGoal || initialGoal;
 
   useEffect(() => {
-    if (!isOpen) setSelectedLaunchId(null);
-  }, [isOpen, goal?.id]);
+    if (!isOpen) {
+      setSelectedLaunchId(null);
+      setIsCreating(false);
+    }
+  }, [isOpen]);
 
   if (!goal) return null;
 
@@ -84,9 +80,15 @@ export function GoalDetailsSheet({
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-full sm:w-135 p-0 flex flex-col h-full bg-slate-50/50 z-50">
-        {selectedLaunchId && selectedLaunch ? (
-          <LaunchThread
+      <SheetContent className="w-full sm:w-150 p-0 flex flex-col h-full bg-slate-50/50 z-50">
+        {isCreating ? (
+          <CreateLaunchForm
+            goal={goal}
+            onBack={() => setIsCreating(false)}
+            onSuccess={() => setIsCreating(false)}
+          />
+        ) : selectedLaunchId && selectedLaunch ? (
+          <LaunchDetails
             launch={selectedLaunch}
             goal={goal}
             mode={mode}
@@ -97,6 +99,7 @@ export function GoalDetailsSheet({
             goal={goal}
             mode={mode}
             onSelectLaunch={(id) => setSelectedLaunchId(id)}
+            onCreateNew={() => setIsCreating(true)}
           />
         )}
       </SheetContent>
@@ -104,82 +107,76 @@ export function GoalDetailsSheet({
   );
 }
 
-// ============================================================================
-// 1. VIEW: VISÃO GERAL DA META (Lista de Lançamentos)
-// ============================================================================
+// ==========================================
+// 1. VIEW: LISTA DE LANÇAMENTOS (Overview)
+// ==========================================
 
-interface GoalOverviewProps {
+function GoalOverview({
+  goal,
+  mode,
+  onSelectLaunch,
+  onCreateNew,
+}: {
   goal: HydratedGoal;
   mode: SheetMode;
   onSelectLaunch: (id: string) => void;
-}
-
-function GoalOverview({ goal, mode, onSelectLaunch }: GoalOverviewProps) {
+  onCreateNew: () => void;
+}) {
   const sortedLaunches = [...(goal.launches || [])].sort(
     (a, b) => b.seq - a.seq
   );
 
-  const canCreateLaunch = mode !== "readonly";
+  // Lógica de limite de lançamentos
+  const maxAllowed = getMaxLaunches(goal.frequency);
+  const currentCount = goal.launches?.length || 0;
+  const canCreateMore = currentCount < maxAllowed;
 
   return (
     <>
-      <SheetHeader className="px-6 py-6 bg-background border-b shadow-sm z-10 shrink-0">
-        <div className="flex justify-between items-start gap-2">
+      <SheetHeader className="px-6 py-6 bg-background border-b shadow-sm shrink-0">
+        <div className="flex justify-between items-start gap-4">
           <div>
-            <Badge variant="secondary" className="mb-2">
-              {goal.frequency.toUpperCase()}
+            <Badge variant="secondary" className="mb-2 uppercase">
+              {goal.frequency}
             </Badge>
             <SheetTitle className="text-2xl font-bold text-primary">
               {goal.title}
             </SheetTitle>
-            <SheetDescription className="mt-1 text-sm">
+            <SheetDescription className="mt-1 line-clamp-2">
               {goal.description}
             </SheetDescription>
           </div>
-          <div className="flex flex-col items-end">
+          <div className="text-right shrink-0">
             <div className="text-2xl font-bold text-blue-600">
               {goal.progress}%
             </div>
-            <span className="text-[10px] uppercase text-muted-foreground font-semibold">
+            <p className="text-[10px] text-muted-foreground font-bold uppercase">
               Progresso
-            </span>
+            </p>
           </div>
         </div>
       </SheetHeader>
 
-      {/* CORREÇÃO AQUI: Adicionado min-h-0 */}
-      <ScrollArea className="flex-1 min-h-0 px-6 py-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-lg text-slate-800 flex items-center gap-2">
+      <ScrollArea className="flex-1 px-6 py-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="font-semibold text-lg flex items-center gap-2 text-slate-800">
             <FileText className="h-5 w-5 text-muted-foreground" />
-            Histórico de Lançamentos
+            Lançamentos ({currentCount}/{maxAllowed})
           </h3>
 
-          {canCreateLaunch && (
-            <Button
-              size="sm"
-              className="gap-1"
-              onClick={() => console.log("Abrir modal de criação (TODO)")}
-            >
-              <Plus className="h-4 w-4" />
-              Novo Lançamento
+          {mode === "launcher" && canCreateMore && (
+            <Button size="sm" onClick={onCreateNew} className="gap-2 shadow-sm">
+              <Plus className="h-4 w-4" /> Novo Lançamento
             </Button>
           )}
         </div>
 
         <div className="flex flex-col gap-3 pb-6">
           {sortedLaunches.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-center border-2 border-dashed rounded-xl bg-slate-50">
-              <div className="bg-slate-100 p-3 rounded-full mb-3">
-                <FileText className="h-6 w-6 text-slate-400" />
-              </div>
-              <p className="text-muted-foreground font-medium">
-                Nenhum lançamento registrado.
-              </p>
-              {canCreateLaunch && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Clique em "Novo Lançamento" para iniciar.
-                </p>
+            <div className="py-12 text-center border-2 border-dashed rounded-2xl bg-slate-50 text-muted-foreground">
+              <p className="text-sm">Nenhum lançamento registado.</p>
+              {mode === "launcher" && (
+                <p className="text-xs mt-1">Clique em "Novo" para começar.</p>
               )}
             </div>
           ) : (
@@ -203,7 +200,7 @@ function LaunchCard({
   inputType,
   onClick,
 }: {
-  launch: any;
+  launch: FirestoreLaunch;
   inputType: string;
   onClick: () => void;
 }) {
@@ -213,428 +210,364 @@ function LaunchCard({
       className: "bg-yellow-100 text-yellow-700 border-yellow-200",
     },
     approved: {
-      label: "Deferido",
+      label: "Aprovado",
       className: "bg-green-100 text-green-700 border-green-200",
     },
     rejected: {
-      label: "Indeferido",
+      label: "Reprovado",
       className: "bg-red-100 text-red-700 border-red-200",
     },
   };
-
-  const status =
-    statusConfig[launch.status as keyof typeof statusConfig] ||
-    statusConfig.pending;
-
-  const lastMsg =
-    Array.isArray(launch.thread) && launch.thread.length > 0
-      ? launch.thread[launch.thread.length - 1]
-      : null;
-
-  const lastMsgContent =
-    lastMsg && "content" in lastMsg ? lastMsg.content : "Atualização de status";
-
-  const displayValue =
-    launch.last_achievement_level !== undefined
-      ? launch.last_achievement_level
-      : lastMsg?.achievement_level;
+  const status = statusConfig[launch.status];
 
   return (
     <Card
       onClick={onClick}
-      className="cursor-pointer hover:border-blue-300 hover:shadow-md transition-all group border-slate-200"
+      className="cursor-pointer hover:border-blue-300 transition-all border-slate-200 shadow-none hover:shadow-sm"
     >
       <CardContent className="p-4">
-        <div className="flex justify-between items-start mb-2">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-700 text-sm">
-              #{launch.seq}
-            </span>
-            <Badge
-              variant="outline"
-              className={cn(
-                "text-[10px] font-semibold border",
-                status.className
-              )}
-            >
-              {status.label}
-            </Badge>
-          </div>
-          <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
-            {format(launch.created_at?.toDate() || new Date(), "dd/MM/yyyy")}
+        <div className="flex justify-between items-center mb-3">
+          <Badge
+            variant="outline"
+            className={cn("text-[10px] font-bold border", status.className)}
+          >
+            {status.label}
+          </Badge>
+          <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-medium">
+            <Calendar className="h-3 w-3" />#{launch.seq} •{" "}
+            {format(launch.created_at.toDate(), "dd/MM/yyyy")}
           </span>
         </div>
-
-        <div className="flex items-center gap-2 mb-3">
-          <div className="bg-slate-100 p-1.5 rounded text-slate-600">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-slate-100 rounded-lg text-slate-600">
             <DollarSign className="h-4 w-4" />
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground uppercase font-bold">
-              Valor Lançado
+          <div className="flex-1">
+            <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-tight">
+              Valor
             </p>
-            <p className="font-semibold text-lg text-slate-800">
+            <p className="font-bold text-lg text-slate-800">
               {inputType === "numeric"
                 ? new Intl.NumberFormat("pt-BR", {
                     style: "currency",
                     currency: "BRL",
-                  }).format(Number(displayValue || 0))
-                : displayValue ?? "—"}
+                  }).format(Number(launch.value))
+                : launch.value}
             </p>
           </div>
-        </div>
-
-        <div className="text-xs text-muted-foreground line-clamp-1 border-t pt-2 mt-2 flex justify-between items-center group-hover:text-blue-600 transition-colors">
-          <span>{lastMsgContent}</span>
-          <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+          <ArrowRight className="h-4 w-4 text-slate-300" />
         </div>
       </CardContent>
     </Card>
   );
 }
 
-// ============================================================================
-// 2. VIEW: THREAD DO LANÇAMENTO (Chat Detalhado)
-// ============================================================================
+// ==========================================
+// 2. VIEW: FORMULÁRIO DE CRIAÇÃO
+// ==========================================
 
-interface LaunchThreadProps {
-  launch: any;
+function CreateLaunchForm({
+  goal,
+  onBack,
+  onSuccess,
+}: {
   goal: HydratedGoal;
-  mode: SheetMode;
   onBack: () => void;
-}
+  onSuccess: () => void;
+}) {
+  const { mutate: createLaunch, isPending } = useCreateLaunch(); //
+  const { data: profile } = useUserProfile(); //
+  const [value, setValue] = useState<string>("");
+  const [note, setNote] = useState("");
 
-function LaunchThread({ launch, goal, mode, onBack }: LaunchThreadProps) {
-  const { data: user } = useUserProfile();
-  const { mutate: sendMessage, isPending } = useAddLaunchMessage();
+  const handleSave = () => {
+    if (!value) return;
+    const nextSeq = (goal.launches?.length || 0) + 1;
 
-  const [newMessage, setNewMessage] = useState("");
-  const [selectedLevel, setSelectedLevel] = useState<
-    string | number | undefined
-  >(launch.last_achievement_level || undefined);
-
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [launch.thread?.length]);
-
-  const handleSendMessage = () => {
-    if (!newMessage.trim()) return;
-
-    if (mode === "launcher" && selectedLevel === undefined) {
-      alert("Por favor, selecione o nível de atingimento atual.");
-      return;
-    }
-
-    const messagePayload = {
-      sender_name: user?.name || "Usuário",
-      achievement_level: selectedLevel!,
-      content: newMessage,
-      timestamp: Timestamp.now(),
-      attachments: [],
-    };
-
-    sendMessage(
+    createLaunch(
       {
         goalId: goal.id,
-        launchId: launch.id,
-        message: messagePayload,
-        newLevel: selectedLevel!,
+        data: {
+          seq: nextSeq,
+          value: goal.input_type === "numeric" ? Number(value) : value,
+          note,
+          status: "pending",
+          updated_by: profile?.name || "Lançador",
+        },
       },
-      {
-        onSuccess: () => {
-          setNewMessage("");
-        },
-        onError: (error) => {
-          console.error("Erro ao enviar:", error);
-          alert("Erro ao enviar mensagem. Tente novamente.");
-        },
-      }
+      { onSuccess }
     );
-  };
-
-  const handleEvaluate = (status: "approved" | "rejected") => {
-    console.log("Avaliando:", status, "Justificativa:", newMessage);
-    setNewMessage("");
   };
 
   return (
     <>
-      <div className="px-4 py-3 bg-background border-b shadow-sm z-10 flex items-center gap-3 shrink-0">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onBack}
-          className="shrink-0 -ml-2"
-        >
-          <ChevronLeft className="h-5 w-5" />
+      <div className="px-4 py-4 bg-background border-b flex items-center gap-3 shrink-0">
+        <Button variant="ghost" size="icon" onClick={onBack} className="-ml-2">
+          <ChevronLeft />
         </Button>
-        <div className="flex-1">
-          <h4 className="font-bold text-sm">Lançamento #{launch.seq}</h4>
-          <p className="text-xs text-muted-foreground truncate max-w-50">
-            {goal.title}
-          </p>
-        </div>
-        <Badge variant="outline" className="bg-slate-50">
-          {launch.status === "approved"
-            ? "Deferido"
-            : launch.status === "rejected"
-            ? "Indeferido"
-            : "Em Análise"}
-        </Badge>
+        <h4 className="font-bold text-sm">
+          Novo Lançamento #{(goal.launches?.length || 0) + 1}
+        </h4>
       </div>
 
-      {/* CORREÇÃO AQUI: Adicionado min-h-0 */}
-      <ScrollArea className="flex-1 min-h-0 px-4 py-6 bg-slate-50/50">
-        <div className="flex flex-col gap-4 pb-4">
-          {launch.thread?.map((msg: any, idx: number) => {
-            const isAuditMsg = "status" in msg;
-            let isSelf = false;
-
-            if (mode === "launcher" && !isAuditMsg) isSelf = true;
-            if (mode === "evaluator" && isAuditMsg) isSelf = true;
-
-            return isAuditMsg ? (
-              <AuditBubble
-                key={idx}
-                message={msg as AuditMessage}
-                isSelf={isSelf}
-              />
+      <ScrollArea className="flex-1 p-6 space-y-6">
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-[11px] font-bold uppercase text-slate-500 tracking-wider">
+              Valor do Resultado
+            </label>
+            {goal.input_type === "numeric" ? (
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">
+                  R$
+                </span>
+                <Input
+                  type="number"
+                  className="pl-9 bg-white"
+                  placeholder="0,00"
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                />
+              </div>
             ) : (
-              <LauncherBubble
-                key={idx}
-                message={msg as LauncherMessage}
-                isSelf={isSelf}
-              />
-            );
-          })}
-          <div ref={scrollRef} />
-        </div>
-      </ScrollArea>
-
-      {mode !== "readonly" && (
-        <div className="p-4 bg-background border-t mt-auto space-y-3 shrink-0">
-          {mode === "launcher" && (
-            <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border">
-              <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap pl-1">
-                Atingimento Atual:
-              </span>
-
-              {goal.input_type === "numeric" ? (
-                <div className="relative flex-1">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">
-                    R$
-                  </span>
-                  <Input
-                    type="number"
-                    placeholder="0,00"
-                    className="h-8 pl-8 bg-white"
-                    value={selectedLevel as number}
-                    onChange={(e) => setSelectedLevel(Number(e.target.value))}
-                  />
-                </div>
-              ) : (
-                <Select
-                  value={
-                    selectedLevel !== undefined
-                      ? String(selectedLevel)
-                      : undefined
-                  }
-                  onValueChange={(val) => setSelectedLevel(val)}
-                >
-                  <SelectTrigger className="h-8 bg-white flex-1">
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-
-                  <SelectContent className="z-60">
-                    {goal.levels.map((level, idx) => (
-                      <SelectItem key={idx} value={String(level.targetValue)}>
-                        {level.targetValue} ({level.percentage}%)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-          )}
-
-          <div className="relative flex gap-2 items-end">
-            <Input
-              placeholder={
-                mode === "evaluator"
-                  ? "Escreva uma justificativa..."
-                  : "Adicione um comentário..."
-              }
-              className="flex-1 h-12 py-3 bg-slate-50"
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-              disabled={isPending}
-            />
-
-            {mode === "launcher" && (
-              <Button
-                size="icon"
-                className="h-12 w-12"
-                onClick={handleSendMessage}
-                disabled={!newMessage || isPending}
-              >
-                {isPending ? (
-                  <span className="animate-spin text-xs">...</span>
-                ) : (
-                  <Send className="h-5 w-5" />
-                )}
-              </Button>
+              <Select onValueChange={setValue}>
+                <SelectTrigger className="bg-white">
+                  <SelectValue placeholder="Selecione a opção atingida" />
+                </SelectTrigger>
+                <SelectContent>
+                  {goal.levels.map((l, i) => (
+                    <SelectItem key={i} value={String(l.targetValue)}>
+                      {l.targetValue} ({l.percentage}%)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
           </div>
 
-          {mode === "evaluator" && (
-            <div className="flex gap-2 pt-2">
-              <Button
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-2"
-                onClick={() => handleEvaluate("approved")}
-              >
-                <ThumbsUp className="h-4 w-4" /> Aprovar
-              </Button>
-              <Button
-                variant="destructive"
-                className="flex-1 gap-2"
-                onClick={() => handleEvaluate("rejected")}
-              >
-                <ThumbsDown className="h-4 w-4" /> Reprovar
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleSendMessage}
-                title="Apenas Comentar"
-                disabled={isPending}
-              >
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
+          <div className="space-y-2">
+            <label className="text-[11px] font-bold uppercase text-slate-500 tracking-wider">
+              Observações / Evidências
+            </label>
+            <Textarea
+              placeholder="Descreva as justificativas para este resultado..."
+              className="min-h-32 bg-white resize-none"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </div>
         </div>
-      )}
+      </ScrollArea>
+
+      <div className="p-4 border-t bg-background">
+        <Button
+          className="w-full h-11 font-bold"
+          disabled={isPending || !value}
+          onClick={handleSave}
+        >
+          {isPending ? "A enviar..." : "Finalizar e Enviar para Análise"}
+        </Button>
+      </div>
     </>
   );
 }
 
-function LauncherBubble({
-  message,
-  isSelf,
+// ==========================================
+// 3. VIEW: DETALHES E EDIÇÃO (Linear)
+// ==========================================
+
+function LaunchDetails({
+  launch,
+  goal,
+  mode,
+  onBack,
 }: {
-  message: LauncherMessage;
-  isSelf: boolean;
+  launch: FirestoreLaunch;
+  goal: HydratedGoal;
+  mode: SheetMode;
+  onBack: () => void;
 }) {
-  const date =
-    message.timestamp && typeof message.timestamp.toDate === "function"
-      ? message.timestamp.toDate()
-      : new Date();
+  const { mutate: updateLaunch, isPending } = useUpdateLaunch(); //
+
+  const [value, setValue] = useState(launch.value);
+  const [note, setNote] = useState(launch.note || "");
+  const [rejectionReason, setRejectionReason] = useState(
+    launch.rejection_reason || ""
+  );
+
+  const handleUpdate = (newStatus: "pending" | "approved" | "rejected") => {
+    updateLaunch(
+      {
+        goalId: goal.id,
+        launchId: launch.id,
+        data: {
+          value: mode === "launcher" ? value : undefined,
+          note: mode === "launcher" ? note : undefined,
+          rejection_reason:
+            newStatus === "rejected"
+              ? rejectionReason
+              : newStatus === "approved"
+              ? ""
+              : undefined,
+          status: newStatus,
+        },
+      },
+      { onSuccess: onBack }
+    );
+  };
+
   return (
-    <div
-      className={cn(
-        "flex gap-3 max-w-[90%]",
-        isSelf ? "ml-auto flex-row-reverse" : ""
-      )}
-    >
-      <Avatar className="h-8 w-8 mt-1 border">
-        <AvatarFallback className="bg-blue-100 text-blue-700 text-xs">
-          {message.sender_name.substring(0, 2).toUpperCase()}
-        </AvatarFallback>
-      </Avatar>
-      <div
-        className={cn(
-          "flex flex-col p-3 rounded-2xl shadow-sm text-sm min-w-50",
-          isSelf
-            ? "bg-blue-600 text-white rounded-tr-none"
-            : "bg-white border rounded-tl-none"
-        )}
-      >
-        <div className="flex justify-between items-baseline gap-4 mb-1">
-          <span
-            className={cn(
-              "font-bold text-xs",
-              isSelf ? "text-blue-100" : "text-slate-700"
-            )}
-          >
-            {message.sender_name}
-          </span>
-          <span
-            className={cn(
-              "text-[10px]",
-              isSelf ? "text-blue-200" : "text-slate-400"
-            )}
-          >
-            {format(date, "HH:mm", { locale: ptBR })}
-          </span>
+    <>
+      <div className="px-4 py-4 bg-background border-b flex items-center gap-3 shrink-0">
+        <Button variant="ghost" size="icon" onClick={onBack} className="-ml-2">
+          <ChevronLeft />
+        </Button>
+        <div className="flex-1">
+          <h4 className="font-bold text-sm">Detalhes #{launch.seq}</h4>
+          <p className="text-xs text-muted-foreground truncate">{goal.title}</p>
         </div>
-        <div
-          className={cn(
-            "inline-flex items-center gap-1.5 px-2 py-1 rounded mb-2 w-fit text-xs font-semibold",
-            isSelf ? "bg-blue-700/50 text-white" : "bg-slate-100 text-slate-700"
+      </div>
+
+      <ScrollArea className="flex-1 p-6">
+        <div className="space-y-6 pb-6">
+          <div
+            className={cn(
+              "p-4 rounded-xl border flex items-center gap-3",
+              launch.status === "approved"
+                ? "bg-green-50 border-green-200 text-green-900"
+                : launch.status === "rejected"
+                ? "bg-red-50 border-red-200 text-red-900"
+                : "bg-yellow-50 border-yellow-200 text-yellow-900"
+            )}
+          >
+            {launch.status === "approved" ? (
+              <CheckCircle2 className="text-green-600" />
+            ) : launch.status === "rejected" ? (
+              <XCircle className="text-red-600" />
+            ) : (
+              <AlertCircle className="text-yellow-600" />
+            )}
+
+            <span className="font-bold uppercase text-xs">
+              Status:{" "}
+              {launch.status === "pending"
+                ? "Em Análise"
+                : launch.status === "approved"
+                ? "Aprovado"
+                : "Reprovado"}
+            </span>
+          </div>
+
+          <div className="space-y-4">
+            <h5 className="text-[11px] font-bold uppercase text-muted-foreground tracking-widest flex items-center gap-2">
+              <FileText className="h-4 w-4" /> Dados do Lançamento
+            </h5>
+            <div className="grid gap-5 bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-slate-500 uppercase">
+                  Valor Atingido
+                </label>
+                {goal.input_type === "numeric" ? (
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">
+                      R$
+                    </span>
+                    <Input
+                      disabled={
+                        mode !== "launcher" || launch.status === "approved"
+                      }
+                      value={value}
+                      onChange={(e) => setValue(e.target.value)}
+                      type="number"
+                      className="pl-9 bg-slate-50/50"
+                    />
+                  </div>
+                ) : (
+                  <Select
+                    disabled={
+                      mode !== "launcher" || launch.status === "approved"
+                    }
+                    value={String(value)}
+                    onValueChange={(val) => setValue(val)}
+                  >
+                    <SelectTrigger className="bg-slate-50/50">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {goal.levels.map((l, i) => (
+                        <SelectItem key={i} value={String(l.targetValue)}>
+                          {l.targetValue}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-slate-500 uppercase">
+                  Observações
+                </label>
+                <Textarea
+                  disabled={mode !== "launcher" || launch.status === "approved"}
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  className="bg-slate-50/50 min-h-24 resize-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          {(launch.status === "rejected" || mode === "evaluator") && (
+            <div className="pt-2 space-y-4 animate-in fade-in slide-in-from-bottom-2">
+              <h5 className="text-[11px] font-bold uppercase text-red-600 tracking-widest flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" /> Auditoria / Motivo
+              </h5>
+              <div className="bg-red-50/30 p-4 rounded-2xl border border-red-100 shadow-sm">
+                <Textarea
+                  disabled={mode !== "evaluator" || launch.status !== "pending"}
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="Explique o motivo da reprovação..."
+                  className="bg-white min-h-24 resize-none border-red-100 focus-visible:ring-red-500"
+                />
+              </div>
+            </div>
           )}
-        >
-          <FileText className="h-3 w-3" /> Resultado:{" "}
-          {message.achievement_level}
         </div>
-        <p className="leading-relaxed whitespace-pre-wrap">{message.content}</p>
-        {message.attachments && message.attachments.length > 0 && (
-          <div className="mt-2 pt-2 border-t border-white/20">
-            <p className="text-xs opacity-80 flex items-center gap-1">
-              <Paperclip className="h-3 w-3" /> {message.attachments.length}{" "}
-              anexo(s)
-            </p>
+      </ScrollArea>
+
+      <div className="p-4 bg-background border-t mt-auto shadow-lg">
+        {mode === "launcher" && launch.status !== "approved" && (
+          <Button
+            className="w-full h-12 font-bold"
+            onClick={() => handleUpdate("pending")}
+            disabled={isPending || !value}
+          >
+            <Save className="h-4 w-4 mr-2" /> Gravar Alterações e Reenviar
+          </Button>
+        )}
+
+        {mode === "evaluator" && launch.status === "pending" && (
+          <div className="flex gap-3">
+            <Button
+              variant="destructive"
+              className="flex-1 h-12 font-bold"
+              onClick={() => handleUpdate("rejected")}
+              disabled={isPending || !rejectionReason}
+            >
+              <ThumbsDown className="h-4 w-4 mr-2" /> Reprovar
+            </Button>
+            <Button
+              className="flex-1 bg-green-600 hover:bg-green-700 h-12 font-bold"
+              onClick={() => handleUpdate("approved")}
+              disabled={isPending}
+            >
+              <ThumbsUp className="h-4 w-4 mr-2" /> Aprovar
+            </Button>
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function AuditBubble({
-  message,
-  isSelf,
-}: {
-  message: AuditMessage;
-  isSelf: boolean;
-}) {
-  const isApproved = message.status === "approved";
-  const date =
-    message.timestamp && typeof message.timestamp.toDate === "function"
-      ? message.timestamp.toDate()
-      : new Date();
-  return (
-    <div className={cn("flex max-w-[90%] my-1", isSelf ? "ml-auto" : "")}>
-      <div
-        className={cn(
-          "flex items-center gap-3 px-4 py-3 rounded-xl border shadow-sm text-sm w-full",
-          isApproved
-            ? "bg-green-50 border-green-200 text-green-900"
-            : "bg-red-50 border-red-200 text-red-900"
-        )}
-      >
-        {isApproved ? (
-          <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />
-        ) : (
-          <XCircle className="h-5 w-5 shrink-0 text-red-600" />
-        )}
-        <div className="flex flex-col">
-          <span className="font-semibold flex items-center gap-2">
-            {isApproved ? "Lançamento Deferido" : "Lançamento Indeferido"}
-            <span className="text-[10px] font-normal opacity-60">
-              {format(date, "dd/MM - HH:mm")}
-            </span>
-          </span>
-          <span className="text-xs opacity-80 mt-0.5">
-            por {message.sender_name}
-          </span>
-        </div>
-      </div>
-    </div>
+    </>
   );
 }
