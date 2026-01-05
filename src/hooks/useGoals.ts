@@ -81,6 +81,14 @@ export function usePendingGoals() {
   });
 }
 
+export function useGoal(goalId?: string) {
+  return useQuery({
+    queryKey: ["goal", goalId],
+    queryFn:() => {},
+    staleTime: 1000 * 60 * 5
+  })
+}
+
 // const createGoal = async (data: Partial<Goal>) => {
 //   const { data: res } = await api.post("/goals", data);
 //   return res;

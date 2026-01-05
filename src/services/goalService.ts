@@ -2,6 +2,8 @@ import { db } from "@/lib/firebase/client";
 import {
   addDoc,
   collection,
+  doc,
+  getDoc,
   getDocs,
   query,
   QueryDocumentSnapshot,
@@ -184,6 +186,27 @@ export const fetchPendingGoalsFromFirestore = async (): Promise<HydratedGoal[]> 
     return goals;
   } catch (error) {
     console.error("Erro no fetchPendingGoalsFromFirestore:", error);
+    throw error;
+  }
+};
+
+export const fetchGoalFromFirestore = async (
+  goal_id: string,
+  hydrate: boolean = true
+): Promise<HydratedGoal | FirestoreGoal> => {
+  try {
+    const goalRef = doc(db, "goals", goal_id).withConverter(goalConverter);
+
+    const docSnap = await getDoc(goalRef);
+
+    if (docSnap.exists()) {
+      if(hydrate) return hydrateGoal(docSnap.data(), docSnap.id);
+      return docSnap.data();
+    } else {
+      throw new Error(`Documento com id ${goal_id} não encontrado.`);
+    }
+  } catch (error) {
+    console.error("Erro no fetchGoalFromFirestore:", error);
     throw error;
   }
 };
