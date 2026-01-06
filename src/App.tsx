@@ -39,7 +39,7 @@ export default function App() {
             <Route
               element={
                 <ProtectedRoute
-                  allowedRoles={["superuser", "admin", "gestor"]}
+                  allowedRoles={["superuser", "admin", "gestor", "avaliador", "colaborador"]}
                 />
               }
             >
@@ -56,7 +56,7 @@ export default function App() {
 
                 <Route
                   element={
-                    <ProtectedRoute allowedRoles={["superuser", "avaliador"]} />
+                    <ProtectedRoute allowedRoles={["superuser", "admin", "avaliador"]} />
                   }
                 >
                   <Route path="/auditoria" element={<EvaluationPage />} />
@@ -65,12 +65,12 @@ export default function App() {
                 {/* ÁREA DE GESTÃO (Setor) */}
                 <Route
                   element={
-                    <ProtectedRoute allowedRoles={["superuser", "gestor"]} />
+                    <ProtectedRoute allowedRoles={["superuser", "admin", "gestor"]} />
                   }
                 >
                   {/* O :sectorId é dinâmico */}
                   <Route
-                    path="/sector/:sectorId/goals"
+                    path="/sector/goals"
                     element={<SectorGoalsPage />}
                   />
                   <Route path="/created-goals" element={<CreatedGoalsPage />} />

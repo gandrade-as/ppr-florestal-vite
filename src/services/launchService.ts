@@ -11,35 +11,86 @@ const calculatePprAttained = (
   launches: FirestoreLaunch[]
 ): number => {
   const maxLaunches = getMaxLaunches(goal.frequency);
-
-  // Se não houver lançamentos previstos, retorna 0 para evitar divisão por zero
   if (maxLaunches === 0) return 0;
 
-  // 1. Peso de CADA lançamento (Ex: Meta vale 30%, Trimestral (2 lançamentos) -> 15% por lançamento)
+  // Peso de cada lançamento (Ex: Meta de 30% com 2 lançamentos = 15% cada)
   const weightPerLaunch = goal.ppr_percentage / maxLaunches;
 
   let totalAttained = 0;
 
-  launches.forEach((launch) => {
-    // Só calculamos valor para lançamentos APROVADOS
-    if (launch.status === "approved") {
-      // Encontrar o nível correspondente ao valor lançado
-      // Como pedido, focando em "options" (comparação exata de string)
-      const matchedLevel = goal.levels.find(
-        (level) => String(level.targetValue) === String(launch.value)
-      );
+  // Preparação para metas numéricas (Cache da ordenação)
+  let sortedLevels: { targetValue: number; percentage: number }[] = [];
+  let isInverse = false; // true = quanto menor melhor (ex: acidentes)
 
-      if (matchedLevel) {
-        // Ex: Nível "Sim" vale 100%
-        // Cálculo: (100% / 100) * 15% = 15% atingido neste lançamento
-        const attainedInThisLaunch =
-          (matchedLevel.percentage / 100) * weightPerLaunch;
-        totalAttained += attainedInThisLaunch;
+  if (goal.input_type === "numeric" && goal.levels.length > 0) {
+    // 1. Converter e ordenar por porcentagem CRESCENTE (0% -> 100%) para descobrir a direção
+    const levelsByPercentage = [...goal.levels]
+      .map((l) => ({
+        targetValue: Number(l.targetValue),
+        percentage: l.percentage,
+      }))
+      .sort((a, b) => a.percentage - b.percentage);
+
+    // 2. Inferir Direção:
+    // Se o alvo de menor % (ex: 20%) for MAIOR que o alvo de maior % (ex: 100%), é INVERSO.
+    // Ex Inverso: 15 (20%) -> 10 (50%) -> 5 (100%). Aqui 15 > 5, então é inverso.
+    if (levelsByPercentage.length >= 2) {
+      const first = levelsByPercentage[0]; // Menor %
+      const last = levelsByPercentage[levelsByPercentage.length - 1]; // Maior %
+      isInverse = first.targetValue > last.targetValue;
+    }
+
+    // 3. Reordenar por porcentagem DECRESCENTE (100% -> 0%) para facilitar a verificação "waterfall"
+    // Assim testamos se atingiu o máximo primeiro.
+    sortedLevels = levelsByPercentage.sort((a, b) => b.percentage - a.percentage);
+  }
+
+  launches.forEach((launch) => {
+    // Apenas lançamentos APROVADOS entram no cálculo financeiro
+    if (launch.status === "approved") {
+      let attainedPercentage = 0;
+
+      if (goal.input_type === "numeric") {
+        const val = Number(launch.value);
+
+        // Verifica nos níveis (do maior % para o menor %)
+        for (const level of sortedLevels) {
+          const target = level.targetValue;
+
+          if (isInverse) {
+            // INVERSO: Para ganhar o %, o valor realizado deve ser MENOR ou IGUAL ao alvo
+            // Ex: Alvo 5 (100%). Realizado 4. 4 <= 5? Sim. Ganha 100%.
+            if (val <= target) {
+              attainedPercentage = level.percentage;
+              break; // Encontrou o maior nível possível, para.
+            }
+          } else {
+            // PROPORCIONAL: Para ganhar o %, o valor realizado deve ser MAIOR ou IGUAL ao alvo
+            // Ex: Alvo 15 (100%). Realizado 20. 20 >= 15? Sim. Ganha 100%.
+            if (val >= target) {
+              attainedPercentage = level.percentage;
+              break; // Encontrou o maior nível possível, para.
+            }
+          }
+        }
+      } else {
+        // LÓGICA DE OPÇÕES (Texto Exato)
+        const matchedLevel = goal.levels.find(
+          (level) => String(level.targetValue) === String(launch.value)
+        );
+        if (matchedLevel) {
+          attainedPercentage = matchedLevel.percentage;
+        }
       }
+
+      // Converte a % do nível em % do PPR Real
+      // Ex: Nível 50% * Peso 15% = 7.5% acumulado
+      const attainedInLaunch = (attainedPercentage / 100) * weightPerLaunch;
+      totalAttained += attainedInLaunch;
     }
   });
 
-  // Retorna o valor arredondado para 2 casas decimais para evitar flutuação (ex: 14.99999)
+  // Arredonda para 2 casas
   return Math.round(totalAttained * 100) / 100;
 };
 

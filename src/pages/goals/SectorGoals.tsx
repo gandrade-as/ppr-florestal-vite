@@ -1,14 +1,14 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
 import { Users } from "lucide-react";
 import { useSectorGoals } from "@/hooks/useGoals";
 import { GoalPageTemplate } from "@/components/goals/GoalPageTemplate";
 import { GoalDetailsSheet } from "@/components/GoalDetailsSheet";
 import type { HydratedGoal } from "@/types/goal";
+import { useUserProfile } from "@/hooks/useUserProfile";
 
 export default function SectorGoalsPage() {
-  const { sectorId } = useParams();
-  const { data: goals, isLoading, isError } = useSectorGoals(sectorId);
+  const { data: user } = useUserProfile();
+  const { data: goals, isLoading, isError } = useSectorGoals(user?.sector.id!);
   const [selectedGoal, setSelectedGoal] = useState<HydratedGoal | null>(null);
 
   return (
