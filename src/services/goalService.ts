@@ -129,7 +129,10 @@ export const fetchGoalsByLauncherFromFirestore = async (
   try {
     const goalsRef = collection(db, "goals").withConverter(goalConverter);
 
-    const q = query(goalsRef, where("launcher_id", "==", launcher_id));
+    const q = query(goalsRef, 
+      where("launcher_id", "==", launcher_id),
+      where("status", "in", ["active", "pending"]),
+    );
 
     const querySnapshot = await getDocs(q);
 
@@ -173,7 +176,7 @@ export const fetchPendingGoalsFromFirestore = async (): Promise<HydratedGoal[]> 
   try {
     const goalsRef = collection(db, "goals").withConverter(goalConverter);
 
-    const q = query(goalsRef, where("status", "==", "pending"));
+    const q = query(goalsRef, where("status", "==", "in_progress"));
 
     const querySnapshot = await getDocs(q);
 

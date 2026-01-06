@@ -157,7 +157,7 @@ function GoalOverview({
         </div>
       </SheetHeader>
 
-      <ScrollArea className="flex-1 px-6 py-6">
+      <ScrollArea className="flex-1 px-6 py-6 overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <h3 className="font-semibold text-lg flex items-center gap-2 text-slate-800">
             <FileText className="h-5 w-5 text-muted-foreground" />

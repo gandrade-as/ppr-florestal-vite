@@ -1,9 +1,9 @@
 import { db } from "@/lib/firebase/client";
 import { doc, getDoc, updateDoc, Timestamp } from "firebase/firestore";
 import { goalConverter } from "./goalService";
-import { getMaxLaunches } from "@/types/goal";
+import { getMaxLaunches, type GoalStatus } from "@/types/goal";
 import type { FirestoreLaunch } from "@/types/launch";
-import type { FirestoreGoal, GoalFrequency } from "@/types/goal"; // Importe o tipo da meta
+import type { FirestoreGoal, GoalFrequency } from "@/types/goal";
 
 // --- NOVA LÓGICA DE CÁLCULO DE PPR ---
 const calculatePprAttained = (
@@ -23,7 +23,7 @@ const calculatePprAttained = (
   let isInverse = false; // true = quanto menor melhor (ex: acidentes)
 
   if (goal.input_type === "numeric" && goal.levels.length > 0) {
-    // 1. Converter e ordenar por porcentagem CRESCENTE (0% -> 100%) para descobrir a direção
+    // 1. Converter e ordenar por porcentagem CRESCENTE
     const levelsByPercentage = [...goal.levels]
       .map((l) => ({
         targetValue: Number(l.targetValue),
@@ -31,18 +31,17 @@ const calculatePprAttained = (
       }))
       .sort((a, b) => a.percentage - b.percentage);
 
-    // 2. Inferir Direção:
-    // Se o alvo de menor % (ex: 20%) for MAIOR que o alvo de maior % (ex: 100%), é INVERSO.
-    // Ex Inverso: 15 (20%) -> 10 (50%) -> 5 (100%). Aqui 15 > 5, então é inverso.
+    // 2. Inferir Direção
     if (levelsByPercentage.length >= 2) {
       const first = levelsByPercentage[0]; // Menor %
       const last = levelsByPercentage[levelsByPercentage.length - 1]; // Maior %
       isInverse = first.targetValue > last.targetValue;
     }
 
-    // 3. Reordenar por porcentagem DECRESCENTE (100% -> 0%) para facilitar a verificação "waterfall"
-    // Assim testamos se atingiu o máximo primeiro.
-    sortedLevels = levelsByPercentage.sort((a, b) => b.percentage - a.percentage);
+    // 3. Reordenar por porcentagem DECRESCENTE para verificação "waterfall"
+    sortedLevels = levelsByPercentage.sort(
+      (a, b) => b.percentage - a.percentage
+    );
   }
 
   launches.forEach((launch) => {
@@ -53,28 +52,23 @@ const calculatePprAttained = (
       if (goal.input_type === "numeric") {
         const val = Number(launch.value);
 
-        // Verifica nos níveis (do maior % para o menor %)
         for (const level of sortedLevels) {
           const target = level.targetValue;
 
           if (isInverse) {
-            // INVERSO: Para ganhar o %, o valor realizado deve ser MENOR ou IGUAL ao alvo
-            // Ex: Alvo 5 (100%). Realizado 4. 4 <= 5? Sim. Ganha 100%.
             if (val <= target) {
               attainedPercentage = level.percentage;
-              break; // Encontrou o maior nível possível, para.
+              break;
             }
           } else {
-            // PROPORCIONAL: Para ganhar o %, o valor realizado deve ser MAIOR ou IGUAL ao alvo
-            // Ex: Alvo 15 (100%). Realizado 20. 20 >= 15? Sim. Ganha 100%.
             if (val >= target) {
               attainedPercentage = level.percentage;
-              break; // Encontrou o maior nível possível, para.
+              break;
             }
           }
         }
       } else {
-        // LÓGICA DE OPÇÕES (Texto Exato)
+        // LÓGICA DE OPÇÕES
         const matchedLevel = goal.levels.find(
           (level) => String(level.targetValue) === String(launch.value)
         );
@@ -83,19 +77,15 @@ const calculatePprAttained = (
         }
       }
 
-      // Converte a % do nível em % do PPR Real
-      // Ex: Nível 50% * Peso 15% = 7.5% acumulado
       const attainedInLaunch = (attainedPercentage / 100) * weightPerLaunch;
       totalAttained += attainedInLaunch;
     }
   });
 
-  // Arredonda para 2 casas
   return Math.round(totalAttained * 100) / 100;
 };
 
-// --- CÁLCULO DE PROGRESSO VISUAL (Opcional: Barra de progresso baseada em tarefas) ---
-// Mantemos essa função auxiliar apenas para atualizar a barra "visual" de quantos lançamentos foram feitos
+// --- CÁLCULO DE PROGRESSO VISUAL ---
 const calculateTaskProgress = (
   launches: FirestoreLaunch[],
   frequency: GoalFrequency
@@ -111,6 +101,36 @@ const calculateTaskProgress = (
 
   const progress = (score / maxLaunches) * 100;
   return Math.min(Math.round(progress), 100);
+};
+
+// --- NOVA FUNÇÃO: DETERMINAR STATUS DA META ---
+const determineNewGoalStatus = (
+  currentStatus: GoalStatus,
+  launches: FirestoreLaunch[],
+  newProgress: number
+): GoalStatus => {
+  // 1. Se estiver cancelada, geralmente mantemos cancelada (a menos que haja reativação explícita)
+  if (currentStatus === "canceled") return "canceled";
+
+  // 2. Verifica se está Concluída
+  // Regra: Progresso 100% E todos os lançamentos aprovados.
+  // Nota: calculateTaskProgress só retorna 100 se score == maxLaunches.
+  // Como 'pending' vale 0.5, é matematicamente possível ter 100% sem tudo aprovado
+  // se houver mais lançamentos que o max, mas assumindo integridade:
+  const allApproved = launches.every((l) => l.status === "approved");
+
+  if (newProgress >= 100 && allApproved) {
+    return "completed";
+  }
+
+  // 3. Verifica se está Em Andamento
+  // Regra: Se tem pelo menos um lançamento e não está concluída.
+  if (launches.length > 0) {
+    return "in_progress";
+  }
+
+  // 4. Caso contrário, Pendente (sem lançamentos)
+  return "pending";
 };
 
 // --- CREATE ---
@@ -150,23 +170,30 @@ export const createLaunchInFirestore = async (
 
     currentLaunches.push(newLaunch);
 
-    // 1. Calcular o novo PPR Atingido
+    // 1. Cálculos de métricas
     const newPprAttained = calculatePprAttained(goalData, currentLaunches);
-
-    // 2. Calcular progresso visual (tarefas)
     const newProgress = calculateTaskProgress(
       currentLaunches,
       goalData.frequency
     );
 
+    // 2. Determinar novo Status da Meta
+    // Se era 'pending' e adicionou um lançamento, vira 'in_progress' automaticamente
+    const newStatus = determineNewGoalStatus(
+      goalData.status,
+      currentLaunches,
+      newProgress
+    );
+
     await updateDoc(goalRef, {
       launches: currentLaunches,
-      progress: newProgress, // Barra de progresso (visual)
-      ppr_attained: newPprAttained, // Valor financeiro/percentual real (NOVO)
+      progress: newProgress,
+      ppr_attained: newPprAttained,
+      status: newStatus, // Atualiza o status
     });
 
     console.log(
-      `Lançamento criado. PPR Atingido: ${newPprAttained}% de ${goalData.ppr_percentage}%`
+      `Lançamento criado. Status: ${newStatus}. Progresso: ${newProgress}%`
     );
   } catch (error) {
     console.error("Erro ao criar lançamento:", error);
@@ -217,19 +244,26 @@ export const updateLaunchInFirestore = async (
 
     launches[launchIndex] = updatedLaunch;
 
-    // 1. Recalcular o PPR Atingido com base nos novos status/valores
+    // 1. Cálculos de métricas
     const newPprAttained = calculatePprAttained(goalData, launches);
-
-    // 2. Recalcular progresso visual
     const newProgress = calculateTaskProgress(launches, goalData.frequency);
+
+    // 2. Determinar novo Status da Meta
+    // Aqui verifica se a aprovação completou a meta ou se uma reprovação voltou para 'in_progress'
+    const newStatus = determineNewGoalStatus(
+      goalData.status,
+      launches,
+      newProgress
+    );
 
     await updateDoc(goalRef, {
       launches: launches,
       progress: newProgress,
-      ppr_attained: newPprAttained, // Atualiza o valor no banco
+      ppr_attained: newPprAttained,
+      status: newStatus, // Atualiza o status
     });
 
-    console.log(`Lançamento atualizado. PPR Atingido: ${newPprAttained}%`);
+    console.log(`Lançamento atualizado. Status da Meta: ${newStatus}`);
   } catch (error) {
     console.error("Erro ao atualizar lançamento:", error);
     throw error;
