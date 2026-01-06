@@ -24,13 +24,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(currentUser);
       setLoading(false);
 
-      if (currentUser) {
-        // Opcional: Aqui você pode pegar o token para enviar ao seu backend pronto
-        currentUser.getIdToken().then((token) => {
-          console.log("Token para Backend:", token);
-          // Salvar em interceptors do axios ou storage se necessário
-        });
-      }
+      // if (currentUser) {
+      //   // Opcional: Aqui você pode pegar o token para enviar ao seu backend pronto
+      //   currentUser.getIdToken().then((token) => {
+      //     // console.log("Token para Backend:", token);
+      //     // Salvar em interceptors do axios ou storage se necessário
+      //   });
+      // }
     });
 
     // Cleanup function: Vital para o Vite HMR não criar múltiplos listeners

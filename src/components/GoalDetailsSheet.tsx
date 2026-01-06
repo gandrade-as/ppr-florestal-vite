@@ -3,7 +3,7 @@ import {
   FileText,
   ChevronLeft,
   Calendar,
-  DollarSign,
+  Hash, // Ícone trocado de DollarSign para Hash
   ArrowRight,
   CheckCircle2,
   XCircle,
@@ -16,11 +16,11 @@ import {
 import { format } from "date-fns";
 
 // Hooks e Tipos
-import { useUpdateLaunch, useCreateLaunch } from "@/hooks/useLaunches"; //
-import { useGoal } from "@/hooks/useGoals"; //
-import { useUserProfile } from "@/hooks/useUserProfile"; //
-import { getMaxLaunches, type HydratedGoal } from "@/types/goal"; //
-import type { FirestoreLaunch } from "@/types/launch"; //
+import { useUpdateLaunch, useCreateLaunch } from "@/hooks/useLaunches";
+import { useGoal } from "@/hooks/useGoals";
+import { useUserProfile } from "@/hooks/useUserProfile";
+import { getMaxLaunches, type HydratedGoal } from "@/types/goal";
+import type { FirestoreLaunch } from "@/types/launch";
 
 // Componentes UI
 import {
@@ -240,17 +240,18 @@ function LaunchCard({
         </div>
         <div className="flex items-center gap-3">
           <div className="p-2 bg-slate-100 rounded-lg text-slate-600">
-            <DollarSign className="h-4 w-4" />
+            <Hash className="h-4 w-4" />
           </div>
           <div className="flex-1">
             <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-tight">
-              Valor
+              Valor / Resultado
             </p>
             <p className="font-bold text-lg text-slate-800">
               {inputType === "numeric"
                 ? new Intl.NumberFormat("pt-BR", {
-                    style: "currency",
-                    currency: "BRL",
+                    style: "decimal",
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 2,
                   }).format(Number(launch.value))
                 : launch.value}
             </p>
@@ -275,8 +276,8 @@ function CreateLaunchForm({
   onBack: () => void;
   onSuccess: () => void;
 }) {
-  const { mutate: createLaunch, isPending } = useCreateLaunch(); //
-  const { data: profile } = useUserProfile(); //
+  const { mutate: createLaunch, isPending } = useCreateLaunch();
+  const { data: profile } = useUserProfile();
   const [value, setValue] = useState<string>("");
   const [note, setNote] = useState("");
 
@@ -318,13 +319,10 @@ function CreateLaunchForm({
             </label>
             {goal.input_type === "numeric" ? (
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">
-                  R$
-                </span>
                 <Input
                   type="number"
-                  className="pl-9 bg-white"
-                  placeholder="0,00"
+                  className="bg-white"
+                  placeholder="0"
                   value={value}
                   onChange={(e) => setValue(e.target.value)}
                 />
@@ -387,7 +385,7 @@ function LaunchDetails({
   mode: SheetMode;
   onBack: () => void;
 }) {
-  const { mutate: updateLaunch, isPending } = useUpdateLaunch(); //
+  const { mutate: updateLaunch, isPending } = useUpdateLaunch();
 
   const [value, setValue] = useState(launch.value);
   const [note, setNote] = useState(launch.note || "");
@@ -469,9 +467,6 @@ function LaunchDetails({
                 </label>
                 {goal.input_type === "numeric" ? (
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">
-                      R$
-                    </span>
                     <Input
                       disabled={
                         mode !== "launcher" || launch.status === "approved"
@@ -479,7 +474,7 @@ function LaunchDetails({
                       value={value}
                       onChange={(e) => setValue(e.target.value)}
                       type="number"
-                      className="pl-9 bg-slate-50/50"
+                      className="bg-slate-50/50"
                     />
                   </div>
                 ) : (

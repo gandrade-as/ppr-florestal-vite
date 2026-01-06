@@ -497,8 +497,8 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
                     >
                       <span className="font-semibold text-sm">Numérico</span>
                       <span className="text-xs text-muted-foreground">
-                        Valores monetários (R$), quantidades, porcentagens
-                        absolutas.
+                        Qualquer valor quantitativo (Ex: Unidades, Kg, Metros
+                        Cúbicos, Valores Monetários).
                       </span>
                     </div>
                     <div
