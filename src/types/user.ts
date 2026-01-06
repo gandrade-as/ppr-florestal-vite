@@ -31,14 +31,17 @@ export const FirestoreUserProfileSchema = z.object({
   ),
   avatarUrl: z.url().optional(),
   sector_id: z.string(),
+  responsible_sectors_ids: z.array(z.string()).optional(),
   uid: z.string(),
 });
 
 export const HydratedUserProfileSchema = FirestoreUserProfileSchema.omit({
   sector_id: true,
+  responsible_sectors_ids: true
 }).extend({
   id: z.string(),
   sector: FirestoreSectorSchema,
+  responsible_sectors: z.array(FirestoreSectorSchema)
 });
 
 export type FirestoreUserProfile = z.infer<typeof FirestoreUserProfileSchema>;

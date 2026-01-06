@@ -45,12 +45,29 @@ export const fetchUserProfileFromFirestore = async (
       );
     }
 
+    const ids = userData.responsible_sectors_ids || [];
+
+    const sectors = await Promise.all(
+      ids.map(async (sector_id) => {
+        let sec = await fetchSectorFromFirestore(sector_id)
+
+        if (!sec) {
+          throw new Error(
+            `Setor vinculado (${sector_id}) não encontrado.`
+          );
+        }
+
+        return sec;
+      })
+    );
+
     const { sector_id, ...userProps } = userData;
 
     const finalUser: HydratedUserProfile = {
       id: userSnap.id,
       ...userProps,
-      sector: sector, 
+      sector: sector,
+      responsible_sectors: sectors 
     };
 
     return finalUser;
