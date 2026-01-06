@@ -70,7 +70,7 @@ export default function App() {
                 >
                   {/* O :sectorId é dinâmico */}
                   <Route
-                    path="/sector/goals"
+                    path="/sector/:sectorId/goals"
                     element={<SectorGoalsPage />}
                   />
                   <Route path="/created-goals" element={<CreatedGoalsPage />} />

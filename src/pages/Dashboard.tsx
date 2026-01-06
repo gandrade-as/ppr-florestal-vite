@@ -1,3 +1,4 @@
+import { useMemo, useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -5,16 +6,116 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Activity, AlertCircle, CreditCard, DollarSign, Users } from "lucide-react";
-import { useDashboardMetrics } from "@/hooks/useDashboard";
+import {
+  Activity,
+  AlertCircle,
+  Target,
+  TrendingUp,
+  Award,
+  Calendar,
+} from "lucide-react";
+import { useSectorGoals } from "@/hooks/useGoals";
+import { useUserProfile } from "@/hooks/useUserProfile";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function DashboardPage() {
-  // Destructuring do React Query: simples e poderoso
-  const { data, isLoading, isError, error } = useDashboardMetrics();
+  // 1. Estado Inicial Inteligente
+  // Define o semestre atual baseado na data do sistema
+  const currentSemester = new Date().getMonth() < 6 ? "01" : "02";
 
-  // Tratamento de Erro Visual
+  const [selectedYear, setSelectedYear] = useState<string>("");
+  const [selectedSemester, setSelectedSemester] =
+    useState<string>(currentSemester);
+
+  // 2. Dados do Usuário e Metas
+  const { data: userProfile, isLoading: isUserLoading } = useUserProfile();
+  const {
+    data: goals,
+    isLoading: isGoalsLoading,
+    isError,
+    error,
+  } = useSectorGoals(userProfile?.sector?.id);
+
+  const isLoading = isUserLoading || isGoalsLoading;
+
+  // 3. Extrair anos disponíveis
+  const availableYears = useMemo(() => {
+    if (!goals) return [];
+    const years = new Set<string>();
+    goals.forEach((goal) => {
+      if (goal.reference) {
+        const [year] = goal.reference.split("/");
+        if (year && year.length === 4) years.add(year);
+      }
+    });
+    // Ordena do mais recente para o mais antigo (ex: 2025, 2024...)
+    return Array.from(years).sort().reverse();
+  }, [goals]);
+
+  // 4. Efeito para selecionar o ano mais recente automaticamente
+  useEffect(() => {
+    if (availableYears.length > 0) {
+      // Se não tiver ano selecionado OU o ano selecionado não existir mais na lista
+      if (!selectedYear || !availableYears.includes(selectedYear)) {
+        setSelectedYear(availableYears[0]); // Seleciona o mais recente
+      }
+    }
+  }, [availableYears, selectedYear]);
+
+  // 5. Filtrar Metas (Lógica Estrita - Sem "Todos")
+  const filteredGoals = useMemo(() => {
+    if (!goals || !selectedYear) return [];
+
+    return goals.filter((goal) => {
+      const [refYear, refSemester] = (goal.reference || "").split("/");
+      return refYear === selectedYear && refSemester === selectedSemester;
+    });
+  }, [goals, selectedYear, selectedSemester]);
+
+  // 6. Cálculos de Métricas
+  const metrics = useMemo(() => {
+    if (!filteredGoals || filteredGoals.length === 0) {
+      return {
+        totalPotential: 0,
+        totalAttained: 0,
+        avgProgress: 0,
+        goalsCount: 0,
+      };
+    }
+
+    const totalPotential = filteredGoals.reduce(
+      (acc, curr) => acc + (curr.ppr_percentage || 0),
+      0
+    );
+    const totalAttained = filteredGoals.reduce(
+      (acc, curr) => acc + (curr.ppr_attained || 0),
+      0
+    );
+
+    const totalProgress = filteredGoals.reduce(
+      (acc, curr) => acc + (curr.progress || 0),
+      0
+    );
+    const avgProgress = totalProgress / filteredGoals.length;
+
+    return {
+      totalPotential,
+      totalAttained,
+      avgProgress,
+      goalsCount: filteredGoals.length,
+    };
+  }, [filteredGoals]);
+
   if (isError) {
     return (
       <div className="flex h-50 w-full items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600">
@@ -24,101 +125,288 @@ export default function DashboardPage() {
     );
   }
 
+  // Estado vazio geral (se não houver nenhuma meta no banco para este setor)
+  if (!isLoading && (!goals || goals.length === 0)) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+        <Target className="h-12 w-12 mb-4 opacity-20" />
+        <h3 className="text-lg font-semibold">Sem metas vinculadas</h3>
+        <p>Seu setor ainda não possui metas cadastradas.</p>
+      </div>
+    );
+  }
+
   return (
-    // 1. O container principal ocupa 100% da altura do <main> (h-full)
-    // Usamos flex-col para empilhar: Título > KPIs > Gráficos
-    <div className="flex flex-col gap-4 h-full w-full">
-      {/* SEÇÃO 1: Cabeçalho (Tamanho automático/fixo) */}
-      <div className="flex items-center justify-between shrink-0">
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+    <div className="flex flex-col gap-6 h-full w-full animate-in fade-in duration-500">
+      {/* CABEÇALHO COM SELETORES */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-3xl font-bold tracking-tight">
+            Dashboard do Setor
+          </h2>
+          <p className="text-muted-foreground">
+            Visão geral do desempenho de {userProfile?.sector?.name || "..."}.
+          </p>
+        </div>
+
+        {/* ÁREA DE FILTROS */}
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <Select
+            value={selectedYear}
+            onValueChange={setSelectedYear}
+            disabled={isLoading || availableYears.length === 0}
+          >
+            <SelectTrigger className="w-full sm:w-25 bg-background">
+              <SelectValue placeholder="Ano" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableYears.map((year) => (
+                <SelectItem key={year} value={year}>
+                  {year}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={selectedSemester}
+            onValueChange={setSelectedSemester}
+            disabled={isLoading || availableYears.length === 0}
+          >
+            <SelectTrigger className="w-full sm:w-32.5 bg-background">
+              <SelectValue placeholder="Semestre" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="01">1º Semestre</SelectItem>
+              <SelectItem value="02">2º Semestre</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {/* SEÇÃO 2: KPIs (Tamanho automático/fixo) */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 shrink-0">
-        {/* CARD 1: Receita */}
-        <Card>
+      {/* SEÇÃO 1: CARDS DE KPI (Usando filteredGoals) */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 shrink-0">
+        {/* CARD 1: CONQUISTA FINANCEIRA (PPR) */}
+        <Card className="border-l-4 border-l-emerald-500 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Receita Total</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Conquista PPR
+            </CardTitle>
+            <Award className="h-4 w-4 text-emerald-600" />
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <Skeleton className="h-8 w-30" /> // Skeleton enquanto carrega
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-24" />
+                <Skeleton className="h-2 w-full" />
+              </div>
             ) : (
-              <div className="text-2xl font-bold">
-                {/* Formatação de moeda */}
-                {new Intl.NumberFormat("pt-BR", {
-                  style: "currency",
-                  currency: "BRL",
-                }).format(data?.revenue || 0)}
+              <>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-bold text-emerald-700">
+                    {metrics.totalAttained.toFixed(2)}%
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    / {metrics.totalPotential.toFixed(2)}%
+                  </span>
+                </div>
+                <Progress
+                  value={
+                    metrics.totalPotential > 0
+                      ? (metrics.totalAttained / metrics.totalPotential) * 100
+                      : 0
+                  }
+                  className="h-2 mt-3 bg-emerald-100 [&>div]:bg-emerald-500"
+                />
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* CARD 2: PROGRESSO OPERACIONAL */}
+        <Card className="border-l-4 border-l-blue-500 shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Progresso Médio
+            </CardTitle>
+            <Activity className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-24" />
+                <Skeleton className="h-2 w-full" />
+              </div>
+            ) : (
+              <>
+                <div className="text-3xl font-bold text-blue-700">
+                  {Math.round(metrics.avgProgress)}%
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Média de avanço
+                </p>
+                <Progress
+                  value={metrics.avgProgress}
+                  className="h-2 mt-3 bg-blue-100 [&>div]:bg-blue-500"
+                />
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* CARD 3: CONTAGEM DE METAS */}
+        <Card className="hidden lg:flex flex-col border-l-4 border-l-orange-400 shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Metas Filtradas
+            </CardTitle>
+            <Target className="h-4 w-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <div className="text-3xl font-bold text-slate-800">
+                {metrics.goalsCount}
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        {/* CARD 2: Assinaturas */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Assinaturas</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <Skeleton className="h-8 w-20" />
-            ) : (
-              <div className="text-2xl font-bold">+{data?.subscriptions}</div>
-            )}
+            <p className="text-xs text-muted-foreground mt-1">
+              Metas em {selectedSemester}/{selectedYear}
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* SEÇÃO 3: Conteúdo Principal (Ocupa TODO o resto do espaço) */}
-      {/* flex-1: Cresce para ocupar o resto. 
-          min-h-0: Permite encolher se a tela for pequena (evita overflow da página) */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 flex-1 min-h-0">
-        {/* Card Grande (Gráfico) */}
-        <Card className="col-span-4 flex flex-col h-full">
-          <CardHeader className="shrink-0">
-            <CardTitle>Visão Geral</CardTitle>
-          </CardHeader>
-          {/* O conteúdo do card cresce para preencher o card */}
-          <CardContent className="pl-2 flex-1 min-h-0 relative">
-            <div className="absolute inset-0 flex items-center justify-center m-4 border border-dashed rounded bg-muted/20">
-              <p className="text-muted-foreground">Gráfico Responsivo</p>
+      {/* SEÇÃO 2: LISTA DE METAS */}
+      <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-3 flex-1 min-h-0">
+        {/* COLUNA ESQUERDA: VISÃO DETALHADA */}
+        <Card className="col-span-1 lg:col-span-2 flex flex-col h-full overflow-hidden border shadow-sm">
+          <CardHeader className="shrink-0 bg-slate-50/50 border-b">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Acompanhamento</CardTitle>
+                <CardDescription>
+                  Status das metas filtradas por período.
+                </CardDescription>
+              </div>
+              <TrendingUp className="h-5 w-5 text-muted-foreground opacity-50" />
             </div>
-          </CardContent>
+          </CardHeader>
+
+          <ScrollArea className="flex-1">
+            <div className="p-6 grid gap-6 sm:grid-cols-2">
+              {isLoading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="space-y-3 border p-4 rounded-xl">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-2 w-full" />
+                    <div className="flex justify-between">
+                      <Skeleton className="h-3 w-10" />
+                      <Skeleton className="h-3 w-10" />
+                    </div>
+                  </div>
+                ))
+              ) : filteredGoals.length === 0 ? (
+                <div className="col-span-full flex flex-col items-center justify-center h-40 text-muted-foreground border-2 border-dashed rounded-xl">
+                  <p>Nenhuma meta encontrada para este período.</p>
+                </div>
+              ) : (
+                filteredGoals.slice(0, 6).map((goal) => (
+                  <div
+                    key={goal.id}
+                    className="flex flex-col gap-3 p-4 rounded-xl border bg-card hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="flex justify-between items-start">
+                      <h4
+                        className="font-semibold text-sm line-clamp-1"
+                        title={goal.title}
+                      >
+                        {goal.title}
+                      </h4>
+                      <Badge variant="outline" className="text-[10px]">
+                        {goal.reference}
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Progresso</span>
+                        <span className="font-bold text-blue-600">
+                          {goal.progress}%
+                        </span>
+                      </div>
+                      <Progress value={goal.progress} className="h-1.5" />
+                    </div>
+
+                    <div className="pt-2 mt-auto border-t flex justify-between items-center text-xs">
+                      <div className="flex items-center text-muted-foreground">
+                        <Calendar className="mr-1 h-3 w-3" />
+                        {goal.deadline
+                          ? goal.deadline.toDate().toLocaleDateString("pt-BR")
+                          : "--/--"}
+                      </div>
+                      <div className="font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-[10px]">
+                        PPR: {goal.ppr_attained}% / {goal.ppr_percentage}%
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </ScrollArea>
         </Card>
 
-        {/* Card Lista (Vendas Recentes) */}
-        <Card className="col-span-3 flex flex-col h-full overflow-hidden">
-          <CardHeader className="shrink-0">
-            <CardTitle>Vendas Recentes</CardTitle>
-            <CardDescription>265 vendas este mês.</CardDescription>
+        {/* COLUNA DIREITA: ÚLTIMAS ATUALIZAÇÕES */}
+        <Card className="col-span-1 flex flex-col h-full overflow-hidden shadow-sm">
+          <CardHeader className="shrink-0 bg-slate-50/50 border-b pb-3">
+            <CardTitle className="text-base">Últimas Atualizações</CardTitle>
           </CardHeader>
-
-          {/* overflow-y-auto AQUI DENTRO: Só a lista rola se precisar */}
-          <CardContent className="flex-1 overflow-y-auto pr-2">
-            <div className="space-y-8">
-              {/* Vários itens para testar o scroll interno */}
-              {Array.from({ length: 10 }).map((_, i) => (
-                <div key={i} className="flex items-center">
-                  <Avatar className="h-9 w-9">
-                    <AvatarImage src="/avatars/01.png" alt="Avatar" />
-                    <AvatarFallback>OM</AvatarFallback>
-                  </Avatar>
-                  <div className="ml-4 space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      Cliente {i + 1}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      email@exemplo.com
-                    </p>
-                  </div>
-                  <div className="ml-auto font-medium">+R$ 1.999,00</div>
+          <ScrollArea className="flex-1 p-0">
+            <div className="flex flex-col divide-y">
+              {isLoading ? (
+                <div className="p-4 space-y-4">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
                 </div>
-              ))}
+              ) : (
+                filteredGoals.map((goal) => (
+                  <div
+                    key={goal.id}
+                    className="flex items-center gap-4 p-4 hover:bg-slate-50/80 transition-colors"
+                  >
+                    <div
+                      className={`p-2 rounded-full shrink-0 ${
+                        goal.status === "completed"
+                          ? "bg-green-100 text-green-600"
+                          : goal.status === "in_progress"
+                          ? "bg-blue-100 text-blue-600"
+                          : "bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      <Target className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {goal.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        Resp: {goal.responsible?.name || "N/A"}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-xs font-bold block">
+                        {goal.progress}%
+                      </span>
+                      <span className="text-[10px] text-muted-foreground capitalize">
+                        {goal.frequency}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
-          </CardContent>
+          </ScrollArea>
         </Card>
       </div>
     </div>
