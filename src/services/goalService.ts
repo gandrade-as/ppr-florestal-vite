@@ -131,7 +131,7 @@ export const fetchGoalsByLauncherFromFirestore = async (
 
     const q = query(goalsRef, 
       where("launcher_id", "==", launcher_id),
-      where("status", "in", ["active", "pending"]),
+      where("status", "in", ["in_progress", "pending"]),
     );
 
     const querySnapshot = await getDocs(q);

@@ -3,7 +3,7 @@ import {
   FileText,
   ChevronLeft,
   Calendar,
-  Hash, // Ícone trocado de DollarSign para Hash
+  Hash,
   ArrowRight,
   CheckCircle2,
   XCircle,
@@ -18,7 +18,7 @@ import { format } from "date-fns";
 // Hooks e Tipos
 import { useUpdateLaunch, useCreateLaunch } from "@/hooks/useLaunches";
 import { useGoal } from "@/hooks/useGoals";
-import { useUserProfile } from "@/hooks/useUserProfile";
+import { useUserProfile } from "@/hooks/useUserProfile"; // Importação do hook de perfil
 import { getMaxLaunches, type HydratedGoal } from "@/types/goal";
 import type { FirestoreLaunch } from "@/types/launch";
 
@@ -63,7 +63,10 @@ export function GoalDetailsSheet({
   const [selectedLaunchId, setSelectedLaunchId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
-  // Sincronização com o Firestore via TanStack Query
+  // 1. Dados do Usuário Logado para verificação de permissão
+  const { data: userProfile } = useUserProfile();
+
+  // 2. Sincronização com o Firestore via TanStack Query
   const { data: freshGoal } = useGoal(initialGoal?.id);
   const goal = freshGoal || initialGoal;
 
@@ -75,6 +78,14 @@ export function GoalDetailsSheet({
   }, [isOpen]);
 
   if (!goal) return null;
+
+  // 3. Lógica de "Modo Efetivo" (Correção do Problema)
+  // Se o usuário logado for o lançador da meta, forçamos o modo "launcher",
+  // a menos que estejamos explicitamente na tela de auditoria ("evaluator").
+  const isUserTheLauncher = userProfile?.id === goal.launcher.id;
+
+  const effectiveMode: SheetMode =
+    mode === "evaluator" ? "evaluator" : isUserTheLauncher ? "launcher" : mode;
 
   const selectedLaunch = goal.launches?.find((l) => l.id === selectedLaunchId);
 
@@ -91,13 +102,13 @@ export function GoalDetailsSheet({
           <LaunchDetails
             launch={selectedLaunch}
             goal={goal}
-            mode={mode}
+            mode={effectiveMode} // Usamos o modo efetivo aqui
             onBack={() => setSelectedLaunchId(null)}
           />
         ) : (
           <GoalOverview
             goal={goal}
-            mode={mode}
+            mode={effectiveMode} // E aqui
             onSelectLaunch={(id) => setSelectedLaunchId(id)}
             onCreateNew={() => setIsCreating(true)}
           />
@@ -164,6 +175,7 @@ function GoalOverview({
             Lançamentos ({currentCount}/{maxAllowed})
           </h3>
 
+          {/* O botão "Novo" aparecerá se effectiveMode for "launcher" */}
           {mode === "launcher" && canCreateMore && (
             <Button size="sm" onClick={onCreateNew} className="gap-2 shadow-sm">
               <Plus className="h-4 w-4" /> Novo Lançamento
@@ -174,7 +186,7 @@ function GoalOverview({
         <div className="flex flex-col gap-3 pb-6">
           {sortedLaunches.length === 0 ? (
             <div className="py-12 text-center border-2 border-dashed rounded-2xl bg-slate-50 text-muted-foreground">
-              <p className="text-sm">Nenhum lançamento registado.</p>
+              <p className="text-sm">Nenhum lançamento registrado.</p>
               {mode === "launcher" && (
                 <p className="text-xs mt-1">Clique em "Novo" para começar.</p>
               )}
@@ -404,8 +416,8 @@ function LaunchDetails({
           rejection_reason:
             newStatus === "rejected"
               ? rejectionReason
-              : newStatus === "approved"
-              ? ""
+              : newStatus === "approved" || newStatus === "pending"
+              ? "" // Limpa o motivo se aprovou ou se reenviou (reset)
               : undefined,
           status: newStatus,
         },
@@ -468,6 +480,7 @@ function LaunchDetails({
                 {goal.input_type === "numeric" ? (
                   <div className="relative">
                     <Input
+                      // Permite editar se for o lançador E o status não estiver aprovado
                       disabled={
                         mode !== "launcher" || launch.status === "approved"
                       }
@@ -536,6 +549,7 @@ function LaunchDetails({
         {mode === "launcher" && launch.status !== "approved" && (
           <Button
             className="w-full h-12 font-bold"
+            // Ao clicar, envia status "pending", que limpa o rejection_reason
             onClick={() => handleUpdate("pending")}
             disabled={isPending || !value}
           >

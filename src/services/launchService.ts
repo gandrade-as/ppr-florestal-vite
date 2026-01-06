@@ -85,7 +85,6 @@ const calculatePprAttained = (
   return Math.round(totalAttained * 100) / 100;
 };
 
-// --- CÁLCULO DE PROGRESSO VISUAL ---
 const calculateTaskProgress = (
   launches: FirestoreLaunch[],
   frequency: GoalFrequency
@@ -95,8 +94,13 @@ const calculateTaskProgress = (
 
   let score = 0;
   launches.forEach((launch) => {
-    if (launch.status === "approved") score += 1;
-    else if (launch.status === "pending") score += 0.5;
+    if (launch.status === "approved") {
+      score += 1; // 100% do peso deste lançamento
+    } else if (launch.status === "pending" || launch.status === "rejected") {
+      // AQUI ESTÁ A MUDANÇA:
+      // Rejeitado conta 0.5 (como pendente) para não "tirar" o progresso visual enquanto é corrigido
+      score += 0.5;
+    }
   });
 
   const progress = (score / maxLaunches) * 100;
