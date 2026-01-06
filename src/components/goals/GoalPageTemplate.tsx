@@ -1,9 +1,17 @@
-import { useState } from "react";
-import { Search, type LucideIcon } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Search, FilterX, type LucideIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { GoalCard } from "@/components/GoalCard";
 import GoalsSkeleton from "@/components/GoalSkeleton";
 import type { HydratedGoal } from "@/types/goal";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface GoalPageTemplateProps {
   title: string;
@@ -29,6 +37,23 @@ export function GoalPageTemplate({
   onGoalClick,
 }: GoalPageTemplateProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedYear, setSelectedYear] = useState<string>("all");
+  const [selectedSemester, setSelectedSemester] = useState<string>("all");
+
+  // 1. Extrair anos únicos das metas existentes para preencher o Dropdown
+  const availableYears = useMemo(() => {
+    if (!goals) return [];
+    const years = new Set<string>();
+    goals.forEach((goal) => {
+      // Supondo formato "YYYY/SS" no campo reference
+      if (goal.reference) {
+        const [year] = goal.reference.split("/");
+        if (year && year.length === 4) years.add(year);
+      }
+    });
+    // Ordena do mais recente para o mais antigo
+    return Array.from(years).sort().reverse();
+  }, [goals]);
 
   // Lógica de Loading / Erro
   if (isLoading) return <GoalsSkeleton />;
@@ -41,13 +66,37 @@ export function GoalPageTemplate({
     );
   }
 
-  // Filtragem local
+  // 2. Filtragem Combinada (Texto + Ano + Semestre)
   const filteredGoals =
-    goals?.filter((goal) =>
-      goal.title.toLowerCase().includes(searchTerm.toLowerCase())
-    ) || [];
+    goals?.filter((goal) => {
+      const [refYear, refSemester] = (goal.reference || "").split("/");
+
+      // Filtro de Texto
+      const matchesSearch = goal.title
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
+
+      // Filtro de Ano (Se 'all', passa tudo. Senão, compara o ano)
+      const matchesYear = selectedYear === "all" || refYear === selectedYear;
+
+      // Filtro de Semestre
+      const matchesSemester =
+        selectedSemester === "all" || refSemester === selectedSemester;
+
+      return matchesSearch && matchesYear && matchesSemester;
+    }) || [];
 
   const hasGoals = goals && goals.length > 0;
+
+  // Função para limpar filtros
+  const clearFilters = () => {
+    setSearchTerm("");
+    setSelectedYear("all");
+    setSelectedSemester("all");
+  };
+
+  const isFiltering =
+    searchTerm !== "" || selectedYear !== "all" || selectedSemester !== "all";
 
   return (
     <div className="flex flex-col gap-6 w-full">
@@ -61,9 +110,44 @@ export function GoalPageTemplate({
           <p className="text-muted-foreground">{description}</p>
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
+          {/* Dropdown de ANO */}
+          <Select
+            value={selectedYear}
+            onValueChange={setSelectedYear}
+            disabled={!hasGoals}
+          >
+            <SelectTrigger className="w-full sm:w-25 bg-background">
+              <SelectValue placeholder="Ano" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {availableYears.map((year) => (
+                <SelectItem key={year} value={year}>
+                  {year}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Dropdown de SEMESTRE */}
+          <Select
+            value={selectedSemester}
+            onValueChange={setSelectedSemester}
+            disabled={!hasGoals}
+          >
+            <SelectTrigger className="w-full sm:w-32.5 bg-background">
+              <SelectValue placeholder="Semestre" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="01">1º Semestre</SelectItem>
+              <SelectItem value="02">2º Semestre</SelectItem>
+            </SelectContent>
+          </Select>
+
           {/* Barra de Busca */}
-          <div className="relative flex-1 md:w-72">
+          <div className="relative flex-1 sm:w-64 w-full">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="search"
@@ -75,6 +159,19 @@ export function GoalPageTemplate({
             />
           </div>
 
+          {/* Botão Limpar Filtros */}
+          {isFiltering && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={clearFilters}
+              title="Limpar filtros"
+              className="shrink-0"
+            >
+              <FilterX className="h-4 w-4 text-muted-foreground" />
+            </Button>
+          )}
+
           {/* Ação Extra (Botão Nova Meta) */}
           {headerAction}
         </div>
@@ -85,7 +182,7 @@ export function GoalPageTemplate({
         <EmptyState message={emptyMessage} icon={Icon} />
       ) : filteredGoals.length === 0 ? (
         <EmptyState
-          message={`Nenhuma meta encontrada para "${searchTerm}".`}
+          message="Nenhuma meta encontrada com os filtros selecionados."
           icon={Search}
         />
       ) : (

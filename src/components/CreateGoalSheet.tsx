@@ -58,6 +58,7 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
     defaultValues: {
       // Etapa 1: Básico
       title: "",
+      reference: "",
       description: "",
       deadline: "",
       priority: "medium",
@@ -113,7 +114,7 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
     {
       id: "basic",
       title: "Informações Básicas",
-      fields: ["title", "deadline", "priority", "description"],
+      fields: ["title", "reference", "deadline", "priority", "description"],
     },
     {
       id: "people",
@@ -148,6 +149,7 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
     // Transformação dos dados para o formato do Firestore (snake_case)
     const payload: any = {
       title: data.title,
+      reference: data.reference,
       description: data.description,
       status: "pending", // Status inicial padrão
       priority: data.priority,
@@ -239,6 +241,30 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>
+                      Referência (Semestre){" "}
+                      <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      placeholder="Ex: 2026/01"
+                      maxLength={7}
+                      {...register("reference", {
+                        required: "Referência obrigatória",
+                        pattern: {
+                          value: /^\d{4}\/(01|02)$/,
+                          message: "Use o formato AAAA/01 ou AAAA/02",
+                        },
+                      })}
+                      className="bg-background"
+                    />
+                    {errors.reference && (
+                      <span className="text-xs text-red-500">
+                        {errors.reference.message as string}
+                      </span>
+                    )}
+                  </div>
+
                   <div className="space-y-2">
                     <Label>
                       Prazo Final <span className="text-red-500">*</span>

@@ -32,7 +32,15 @@ export function GoalCard({ goal }: { goal: HydratedGoal }) {
     <Card className="flex flex-col justify-between hover:shadow-md transition-shadow h-full">
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start">
-          <Badge variant={statusInfo.color}>{statusInfo.label}</Badge>
+          <div className="flex gap-2">
+            <Badge variant={statusInfo.color}>{statusInfo.label}</Badge>
+
+            {/* --- NOVO BADGE DE REFERÊNCIA --- */}
+            <Badge variant="outline" className="bg-slate-50">
+              {goal.reference}
+            </Badge>
+          </div>
+          
           {goal.priority === "high" && (
             <Badge variant="destructive" className="text-[10px] px-1.5 h-5">
               Alta
