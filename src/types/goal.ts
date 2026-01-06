@@ -47,6 +47,7 @@ export const FirestoreGoalSchema = z.object({
   description: z.string().optional(),
   status: z.enum(["pending", "in_progress", "completed", "canceled"]),
   reference: z.string().regex(/^\d{4}\/(01|02)$/),
+  ppr_percentage: z.number().min(0),
   priority: z.enum(["low", "medium", "high"]),
   progress: z.number().min(0).max(100),
   deadline: z.instanceof(Timestamp),

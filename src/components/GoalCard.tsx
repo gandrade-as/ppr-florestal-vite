@@ -39,8 +39,17 @@ export function GoalCard({ goal }: { goal: HydratedGoal }) {
             <Badge variant="outline" className="bg-slate-50">
               {goal.reference}
             </Badge>
+
+            {/* --- NOVO BADGE DE PORCENTAGEM PPR --- */}
+            <Badge
+              variant="secondary"
+              className="bg-blue-50 text-blue-700 border-blue-200 gap-1"
+              title="Peso no PPR"
+            >
+              {goal.ppr_percentage}%
+            </Badge>
           </div>
-          
+
           {goal.priority === "high" && (
             <Badge variant="destructive" className="text-[10px] px-1.5 h-5">
               Alta

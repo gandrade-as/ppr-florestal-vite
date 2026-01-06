@@ -59,11 +59,12 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
       // Etapa 1: Básico
       title: "",
       reference: "",
+      ppr_percentage: 0, // Novo campo
       description: "",
       deadline: "",
       priority: "medium",
 
-      // Etapa 2: Pessoas (Nomes do Form em camelCase)
+      // Etapa 2: Pessoas
       sectorId: "",
       responsibleId: "",
       launcherId: "",
@@ -92,12 +93,6 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
   const { data: sectorUsers, isLoading: isLoadingSectorUsers } =
     useSectorUsers(selectedSectorId);
 
-  // Cálculo da soma das porcentagens em tempo real
-  // const totalPercentage = levels.reduce(
-  //   (acc, curr) => acc + (Number(curr.percentage) || 0),
-  //   0
-  // );
-
   const isTotalValid =
     levels.length > 0 && levels.every((l) => Number(l.percentage) >= 0);
 
@@ -114,7 +109,14 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
     {
       id: "basic",
       title: "Informações Básicas",
-      fields: ["title", "reference", "deadline", "priority", "description"],
+      fields: [
+        "title",
+        "reference",
+        "ppr_percentage",
+        "deadline",
+        "priority",
+        "description",
+      ],
     },
     {
       id: "people",
@@ -150,6 +152,7 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
     const payload: any = {
       title: data.title,
       reference: data.reference,
+      ppr_percentage: Number(data.ppr_percentage),
       description: data.description,
       status: "pending", // Status inicial padrão
       priority: data.priority,
@@ -158,12 +161,10 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
       frequency: data.frequency,
       input_type: data.input_type,
 
-      // Mapeamento dos relacionamentos (Form -> Firestore)
+      // Mapeamento dos relacionamentos
       sector_id: data.sectorId,
       responsible_id: data.responsibleId,
       launcher_id: data.launcherId,
-
-      // O creator_id é injetado automaticamente pelo hook useCreateGoal usando o AuthContext
 
       // Tratamento dos níveis
       levels: data.levels.map((l: any) => ({
@@ -240,7 +241,9 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
                   />
                 </div>
 
+                {/* Grid 2x2 para campos curtos */}
                 <div className="grid grid-cols-2 gap-4">
+                  {/* Referência */}
                   <div className="space-y-2">
                     <Label>
                       Referência (Semestre){" "}
@@ -265,6 +268,7 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
                     )}
                   </div>
 
+                  {/* Prazo Final */}
                   <div className="space-y-2">
                     <Label>
                       Prazo Final <span className="text-red-500">*</span>
@@ -282,6 +286,38 @@ export function CreateGoalSheet({ isOpen, onClose }: CreateGoalSheetProps) {
                       </span>
                     )}
                   </div>
+
+                  {/* Peso PPR */}
+                  <div className="space-y-2">
+                    <Label>
+                      Peso no PPR (%) <span className="text-red-500">*</span>
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        placeholder="Ex: 30"
+                        {...register("ppr_percentage", {
+                          required: "Peso é obrigatório",
+                          min: { value: 0, message: "Mínimo 0%" },
+                          max: { value: 100, message: "Máximo 100%" },
+                        })}
+                        className="bg-background pr-8"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">
+                        %
+                      </span>
+                    </div>
+                    {errors.ppr_percentage && (
+                      <span className="text-xs text-red-500">
+                        {errors.ppr_percentage.message as string}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Prioridade */}
                   <div className="space-y-2">
                     <Label>Prioridade</Label>
                     <Select
