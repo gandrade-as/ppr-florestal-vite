@@ -12,6 +12,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import type { HydratedGoal } from "@/types/goal";
 import { useUserProfile } from "@/hooks/useUserProfile";
+import { cn } from "@/lib/utils";
 
 // Mapeamento de Cores (pode ficar aqui ou em um utils/constants.ts)
 const statusMap: Record<
@@ -28,6 +29,9 @@ export function GoalCard({ goal }: { goal: HydratedGoal }) {
   const { data: user } = useUserProfile();
   const statusInfo = statusMap[goal.status] || statusMap.pending;
 
+  const isFullyAttained =
+    goal.ppr_attained > 0 && goal.ppr_attained >= goal.ppr_percentage;
+
   return (
     <Card className="flex flex-col justify-between hover:shadow-md transition-shadow h-full">
       <CardHeader className="pb-2">
@@ -43,10 +47,18 @@ export function GoalCard({ goal }: { goal: HydratedGoal }) {
             {/* --- NOVO BADGE DE PORCENTAGEM PPR --- */}
             <Badge
               variant="secondary"
-              className="bg-blue-50 text-blue-700 border-blue-200 gap-1"
-              title="Peso no PPR"
+              className={cn(
+                "gap-1.5 transition-colors",
+                isFullyAttained
+                  ? "bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-200"
+                  : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+              )}
+              title="PPR Atingido / PPR Possível"
             >
-              {goal.ppr_percentage}%
+              <span className="font-mono font-bold">{goal.ppr_attained}%</span>
+              <span className="opacity-60 text-[10px]">
+                / {goal.ppr_percentage}%
+              </span>
             </Badge>
           </div>
 

@@ -1,11 +1,51 @@
 import { db } from "@/lib/firebase/client";
 import { doc, getDoc, updateDoc, Timestamp } from "firebase/firestore";
 import { goalConverter } from "./goalService";
-import { getMaxLaunches, type GoalFrequency } from "@/types/goal";
+import { getMaxLaunches } from "@/types/goal";
 import type { FirestoreLaunch } from "@/types/launch";
+import type { FirestoreGoal, GoalFrequency } from "@/types/goal"; // Importe o tipo da meta
 
-// --- CÁLCULO DE PROGRESSO ---
-const calculateProgress = (
+// --- NOVA LÓGICA DE CÁLCULO DE PPR ---
+const calculatePprAttained = (
+  goal: FirestoreGoal,
+  launches: FirestoreLaunch[]
+): number => {
+  const maxLaunches = getMaxLaunches(goal.frequency);
+
+  // Se não houver lançamentos previstos, retorna 0 para evitar divisão por zero
+  if (maxLaunches === 0) return 0;
+
+  // 1. Peso de CADA lançamento (Ex: Meta vale 30%, Trimestral (2 lançamentos) -> 15% por lançamento)
+  const weightPerLaunch = goal.ppr_percentage / maxLaunches;
+
+  let totalAttained = 0;
+
+  launches.forEach((launch) => {
+    // Só calculamos valor para lançamentos APROVADOS
+    if (launch.status === "approved") {
+      // Encontrar o nível correspondente ao valor lançado
+      // Como pedido, focando em "options" (comparação exata de string)
+      const matchedLevel = goal.levels.find(
+        (level) => String(level.targetValue) === String(launch.value)
+      );
+
+      if (matchedLevel) {
+        // Ex: Nível "Sim" vale 100%
+        // Cálculo: (100% / 100) * 15% = 15% atingido neste lançamento
+        const attainedInThisLaunch =
+          (matchedLevel.percentage / 100) * weightPerLaunch;
+        totalAttained += attainedInThisLaunch;
+      }
+    }
+  });
+
+  // Retorna o valor arredondado para 2 casas decimais para evitar flutuação (ex: 14.99999)
+  return Math.round(totalAttained * 100) / 100;
+};
+
+// --- CÁLCULO DE PROGRESSO VISUAL (Opcional: Barra de progresso baseada em tarefas) ---
+// Mantemos essa função auxiliar apenas para atualizar a barra "visual" de quantos lançamentos foram feitos
+const calculateTaskProgress = (
   launches: FirestoreLaunch[],
   frequency: GoalFrequency
 ): number => {
@@ -43,7 +83,6 @@ export const createLaunchInFirestore = async (
     const currentLaunches = [...(goalData.launches || [])];
     const newId = Math.random().toString(36).substr(2, 9);
 
-    // CORREÇÃO: Não definir rejection_reason como undefined
     const newLaunch: FirestoreLaunch = {
       id: newId,
       seq: launchData.seq,
@@ -54,21 +93,30 @@ export const createLaunchInFirestore = async (
       updated_at: Timestamp.now(),
     };
 
-    // Adiciona nota apenas se existir (evita undefined)
     if (launchData.note) {
       newLaunch.note = launchData.note;
     }
 
     currentLaunches.push(newLaunch);
 
-    const newProgress = calculateProgress(currentLaunches, goalData.frequency);
+    // 1. Calcular o novo PPR Atingido
+    const newPprAttained = calculatePprAttained(goalData, currentLaunches);
+
+    // 2. Calcular progresso visual (tarefas)
+    const newProgress = calculateTaskProgress(
+      currentLaunches,
+      goalData.frequency
+    );
 
     await updateDoc(goalRef, {
       launches: currentLaunches,
-      progress: newProgress,
+      progress: newProgress, // Barra de progresso (visual)
+      ppr_attained: newPprAttained, // Valor financeiro/percentual real (NOVO)
     });
 
-    console.log(`Lançamento criado com sucesso! ID: ${newId}`);
+    console.log(
+      `Lançamento criado. PPR Atingido: ${newPprAttained}% de ${goalData.ppr_percentage}%`
+    );
   } catch (error) {
     console.error("Erro ao criar lançamento:", error);
     throw error;
@@ -104,32 +152,33 @@ export const updateLaunchInFirestore = async (
       updated_at: Timestamp.now(),
     };
 
-    // Atualiza valores se existirem
     if (updateData.value !== undefined) updatedLaunch.value = updateData.value;
     if (updateData.note !== undefined) updatedLaunch.note = updateData.note;
 
-    // CORREÇÃO: Lógica para limpar ou definir rejection_reason
     if (updateData.rejection_reason) {
-      // Se veio uma razão (rejeição), salvamos
       updatedLaunch.rejection_reason = updateData.rejection_reason;
     } else if (
       updateData.status === "approved" ||
       updateData.status === "pending"
     ) {
-      // Se foi aprovado ou reenviado, REMOVEMOS o campo usando delete
       delete updatedLaunch.rejection_reason;
     }
 
     launches[launchIndex] = updatedLaunch;
 
-    const newProgress = calculateProgress(launches, goalData.frequency);
+    // 1. Recalcular o PPR Atingido com base nos novos status/valores
+    const newPprAttained = calculatePprAttained(goalData, launches);
+
+    // 2. Recalcular progresso visual
+    const newProgress = calculateTaskProgress(launches, goalData.frequency);
 
     await updateDoc(goalRef, {
       launches: launches,
       progress: newProgress,
+      ppr_attained: newPprAttained, // Atualiza o valor no banco
     });
 
-    console.log(`Lançamento atualizado. Novo Progresso: ${newProgress}%`);
+    console.log(`Lançamento atualizado. PPR Atingido: ${newPprAttained}%`);
   } catch (error) {
     console.error("Erro ao atualizar lançamento:", error);
     throw error;

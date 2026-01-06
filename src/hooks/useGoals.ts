@@ -106,6 +106,7 @@ export function useCreateGoal() {
       queryClient.invalidateQueries({ queryKey: ["created-goals"] });
       queryClient.invalidateQueries({ queryKey: ["my-goals"] });
       queryClient.invalidateQueries({ queryKey: ["sector-goals"] });
+      queryClient.invalidateQueries({ queryKey: ["launcher-goals"] });
     },
   });
 }
