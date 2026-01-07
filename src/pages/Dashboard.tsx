@@ -13,6 +13,7 @@ import {
   TrendingUp,
   Award,
   Calendar,
+  Briefcase, // Ícone para o seletor de setor
 } from "lucide-react";
 import { useSectorGoals } from "@/hooks/useGoals";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -29,26 +30,53 @@ import {
 } from "@/components/ui/select";
 
 export default function DashboardPage() {
-  // 1. Estado Inicial Inteligente
-  // Define o semestre atual baseado na data do sistema
+  // 1. Estado Inicial de Datas
   const currentSemester = new Date().getMonth() < 6 ? "01" : "02";
-
   const [selectedYear, setSelectedYear] = useState<string>("");
   const [selectedSemester, setSelectedSemester] =
     useState<string>(currentSemester);
 
-  // 2. Dados do Usuário e Metas
+  // 2. Estado de Setor
+  const [selectedSectorId, setSelectedSectorId] = useState<string>("");
+
+  // 3. Dados do Usuário
   const { data: userProfile, isLoading: isUserLoading } = useUserProfile();
+
+  // 4. Determina quais setores o usuário pode ver
+  const availableSectors = useMemo(() => {
+    return userProfile?.responsible_sectors || [];
+  }, [userProfile]);
+
+  const hasResponsibleSectors = availableSectors.length > 0;
+
+  // 5. Efeito para selecionar o setor inicial
+  useEffect(() => {
+    if (isUserLoading) return;
+
+    if (!selectedSectorId) {
+      if (hasResponsibleSectors) {
+        // Se tem setores responsáveis, seleciona o primeiro da lista
+        setSelectedSectorId(availableSectors[0].id);
+      } else if (userProfile?.sector?.id) {
+        // Se não tem, usa o setor de lotação do usuário (fallback)
+        setSelectedSectorId(userProfile.sector.id);
+      }
+    }
+  }, [userProfile, hasResponsibleSectors, selectedSectorId, isUserLoading]);
+
+  // 6. Busca Metas baseada no setor selecionado (Reativo)
   const {
     data: goals,
     isLoading: isGoalsLoading,
     isError,
     error,
-  } = useSectorGoals(userProfile?.sector?.id);
+  } = useSectorGoals(selectedSectorId);
 
-  const isLoading = isUserLoading || isGoalsLoading;
+  const isLoading = isUserLoading || (!!selectedSectorId && isGoalsLoading);
 
-  // 3. Extrair anos disponíveis
+  // --- LÓGICA DE FILTROS E MÉTRICAS (MANTIDA) ---
+
+  // Extrair anos disponíveis
   const availableYears = useMemo(() => {
     if (!goals) return [];
     const years = new Set<string>();
@@ -58,21 +86,19 @@ export default function DashboardPage() {
         if (year && year.length === 4) years.add(year);
       }
     });
-    // Ordena do mais recente para o mais antigo (ex: 2025, 2024...)
     return Array.from(years).sort().reverse();
   }, [goals]);
 
-  // 4. Efeito para selecionar o ano mais recente automaticamente
+  // Auto-seleção do ano
   useEffect(() => {
     if (availableYears.length > 0) {
-      // Se não tiver ano selecionado OU o ano selecionado não existir mais na lista
       if (!selectedYear || !availableYears.includes(selectedYear)) {
-        setSelectedYear(availableYears[0]); // Seleciona o mais recente
+        setSelectedYear(availableYears[0]);
       }
     }
   }, [availableYears, selectedYear]);
 
-  // 5. Filtrar Metas (Lógica Estrita - Sem "Todos")
+  // Filtragem
   const filteredGoals = useMemo(() => {
     if (!goals || !selectedYear) return [];
 
@@ -82,7 +108,7 @@ export default function DashboardPage() {
     });
   }, [goals, selectedYear, selectedSemester]);
 
-  // 6. Cálculos de Métricas
+  // Cálculo de Métricas
   const metrics = useMemo(() => {
     if (!filteredGoals || filteredGoals.length === 0) {
       return {
@@ -125,13 +151,13 @@ export default function DashboardPage() {
     );
   }
 
-  // Estado vazio geral (se não houver nenhuma meta no banco para este setor)
-  if (!isLoading && (!goals || goals.length === 0)) {
+  // Se não estiver carregando e não tiver setor selecionado (caso raro de usuário sem setor)
+  if (!isLoading && !selectedSectorId) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-        <Target className="h-12 w-12 mb-4 opacity-20" />
-        <h3 className="text-lg font-semibold">Sem metas vinculadas</h3>
-        <p>Seu setor ainda não possui metas cadastradas.</p>
+        <AlertCircle className="h-12 w-12 mb-4 opacity-20" />
+        <h3 className="text-lg font-semibold">Sem setor vinculado</h3>
+        <p>Contate o administrador para vincular seu usuário a um setor.</p>
       </div>
     );
   }
@@ -139,54 +165,88 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-6 h-full w-full animate-in fade-in duration-500">
       {/* CABEÇALHO COM SELETORES */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 shrink-0">
         <div className="flex flex-col gap-1">
-          <h2 className="text-3xl font-bold tracking-tight">
-            Dashboard do Setor
-          </h2>
+          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
           <p className="text-muted-foreground">
-            Visão geral do desempenho de {userProfile?.sector?.name || "..."}.
+            {/* Mostra o nome do setor que está sendo visualizado */}
+            Visão geral de:{" "}
+            <strong className="text-foreground">
+              {hasResponsibleSectors
+                ? availableSectors.find((s) => s.id === selectedSectorId)?.name
+                : userProfile?.sector?.name}
+            </strong>
           </p>
         </div>
 
         {/* ÁREA DE FILTROS */}
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <Select
-            value={selectedYear}
-            onValueChange={setSelectedYear}
-            disabled={isLoading || availableYears.length === 0}
-          >
-            <SelectTrigger className="w-full sm:w-25 bg-background">
-              <SelectValue placeholder="Ano" />
-            </SelectTrigger>
-            <SelectContent>
-              {availableYears.map((year) => (
-                <SelectItem key={year} value={year}>
-                  {year}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex flex-col sm:flex-row items-center gap-2 w-full xl:w-auto">
+          {/* 1. SELETOR DE SETOR (Só aparece se tiver responsible_sectors) */}
+          {hasResponsibleSectors && (
+            <div className="w-full sm:w-60">
+              <Select
+                value={selectedSectorId}
+                onValueChange={setSelectedSectorId}
+                disabled={isLoading}
+              >
+                <SelectTrigger className="bg-background h-10 border-dashed border-slate-300">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Briefcase className="h-4 w-4" />
+                    <SelectValue placeholder="Setor" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {availableSectors.map((sector) => (
+                    <SelectItem key={sector.id} value={sector.id}>
+                      {sector.name} ({sector.acronym})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
-          <Select
-            value={selectedSemester}
-            onValueChange={setSelectedSemester}
-            disabled={isLoading || availableYears.length === 0}
-          >
-            <SelectTrigger className="w-full sm:w-32.5 bg-background">
-              <SelectValue placeholder="Semestre" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="01">1º Semestre</SelectItem>
-              <SelectItem value="02">2º Semestre</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* 2. SELETORES DE DATA */}
+          <div className="flex w-full sm:w-auto gap-2">
+            <Select
+              value={selectedYear}
+              onValueChange={setSelectedYear}
+              disabled={isLoading || availableYears.length === 0}
+            >
+              <SelectTrigger className="w-full sm:w-25 bg-background h-10">
+                <SelectValue placeholder="Ano" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableYears.map((year) => (
+                  <SelectItem key={year} value={year}>
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={selectedSemester}
+              onValueChange={setSelectedSemester}
+              disabled={isLoading || availableYears.length === 0}
+            >
+              <SelectTrigger className="w-full sm:w-35 bg-background h-10">
+                <SelectValue placeholder="Semestre" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="01">1º Semestre</SelectItem>
+                <SelectItem value="02">2º Semestre</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
-      {/* SEÇÃO 1: CARDS DE KPI (Usando filteredGoals) */}
+      {/* SEÇÃO 1: CARDS DE KPI */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 shrink-0">
-        {/* CARD 1: CONQUISTA FINANCEIRA (PPR) */}
+        {/* ... (Conteúdo dos Cards mantém-se idêntico ao original) ... */}
+
+        {/* CARD 1: CONQUISTA FINANCEIRA */}
         <Card className="border-l-4 border-l-emerald-500 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -243,7 +303,7 @@ export default function DashboardPage() {
                   {Math.round(metrics.avgProgress)}%
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Média de avanço
+                  Média de avanço das metas
                 </p>
                 <Progress
                   value={metrics.avgProgress}
@@ -258,7 +318,7 @@ export default function DashboardPage() {
         <Card className="hidden lg:flex flex-col border-l-4 border-l-orange-400 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Metas Filtradas
+              Total de Metas
             </CardTitle>
             <Target className="h-4 w-4 text-orange-500" />
           </CardHeader>
@@ -271,7 +331,7 @@ export default function DashboardPage() {
               </div>
             )}
             <p className="text-xs text-muted-foreground mt-1">
-              Metas em {selectedSemester}/{selectedYear}
+              Metas ativas no período selecionado
             </p>
           </CardContent>
         </Card>
@@ -284,9 +344,9 @@ export default function DashboardPage() {
           <CardHeader className="shrink-0 bg-slate-50/50 border-b">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Acompanhamento</CardTitle>
+                <CardTitle>Acompanhamento Detalhado</CardTitle>
                 <CardDescription>
-                  Status das metas filtradas por período.
+                  Status individual das metas filtradas.
                 </CardDescription>
               </div>
               <TrendingUp className="h-5 w-5 text-muted-foreground opacity-50" />
@@ -307,28 +367,32 @@ export default function DashboardPage() {
                   </div>
                 ))
               ) : filteredGoals.length === 0 ? (
-                <div className="col-span-full flex flex-col items-center justify-center h-40 text-muted-foreground border-2 border-dashed rounded-xl">
-                  <p>Nenhuma meta encontrada para este período.</p>
+                <div className="col-span-full flex flex-col items-center justify-center h-40 text-muted-foreground border-2 border-dashed rounded-xl bg-slate-50/50">
+                  <Target className="h-8 w-8 mb-2 opacity-20" />
+                  <p>Nenhuma meta encontrada para este período/setor.</p>
                 </div>
               ) : (
-                filteredGoals.slice(0, 6).map((goal) => (
+                filteredGoals.map((goal) => (
                   <div
                     key={goal.id}
-                    className="flex flex-col gap-3 p-4 rounded-xl border bg-card hover:bg-slate-50 transition-colors"
+                    className="flex flex-col gap-3 p-4 rounded-xl border bg-card hover:bg-slate-50 transition-colors shadow-sm"
                   >
-                    <div className="flex justify-between items-start">
+                    <div className="flex justify-between items-start gap-2">
                       <h4
-                        className="font-semibold text-sm line-clamp-1"
+                        className="font-semibold text-sm line-clamp-2 leading-tight"
                         title={goal.title}
                       >
                         {goal.title}
                       </h4>
-                      <Badge variant="outline" className="text-[10px]">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] shrink-0 h-5"
+                      >
                         {goal.reference}
                       </Badge>
                     </div>
 
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
                       <div className="flex justify-between text-xs text-muted-foreground">
                         <span>Progresso</span>
                         <span className="font-bold text-blue-600">
@@ -339,14 +403,17 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="pt-2 mt-auto border-t flex justify-between items-center text-xs">
-                      <div className="flex items-center text-muted-foreground">
+                      <div
+                        className="flex items-center text-muted-foreground"
+                        title="Prazo"
+                      >
                         <Calendar className="mr-1 h-3 w-3" />
                         {goal.deadline
                           ? goal.deadline.toDate().toLocaleDateString("pt-BR")
                           : "--/--"}
                       </div>
-                      <div className="font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-[10px]">
-                        PPR: {goal.ppr_attained}% / {goal.ppr_percentage}%
+                      <div className="font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-[10px] border border-emerald-100">
+                        {goal.ppr_attained}% / {goal.ppr_percentage}%
                       </div>
                     </div>
                   </div>
@@ -356,10 +423,10 @@ export default function DashboardPage() {
           </ScrollArea>
         </Card>
 
-        {/* COLUNA DIREITA: ÚLTIMAS ATUALIZAÇÕES */}
+        {/* COLUNA DIREITA: ÚLTIMAS ATUALIZAÇÕES (Compacta) */}
         <Card className="col-span-1 flex flex-col h-full overflow-hidden shadow-sm">
           <CardHeader className="shrink-0 bg-slate-50/50 border-b pb-3">
-            <CardTitle className="text-base">Últimas Atualizações</CardTitle>
+            <CardTitle className="text-base">Lista Rápida</CardTitle>
           </CardHeader>
           <ScrollArea className="flex-1 p-0">
             <div className="flex flex-col divide-y">
@@ -373,10 +440,10 @@ export default function DashboardPage() {
                 filteredGoals.map((goal) => (
                   <div
                     key={goal.id}
-                    className="flex items-center gap-4 p-4 hover:bg-slate-50/80 transition-colors"
+                    className="flex items-center gap-3 p-3 hover:bg-slate-50/80 transition-colors"
                   >
                     <div
-                      className={`p-2 rounded-full shrink-0 ${
+                      className={`p-2 rounded-lg shrink-0 ${
                         goal.status === "completed"
                           ? "bg-green-100 text-green-600"
                           : goal.status === "in_progress"
@@ -387,19 +454,19 @@ export default function DashboardPage() {
                       <Target className="h-4 w-4" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
+                      <p
+                        className="text-sm font-medium truncate"
+                        title={goal.title}
+                      >
                         {goal.title}
                       </p>
-                      <p className="text-xs text-muted-foreground truncate">
+                      <p className="text-[11px] text-muted-foreground truncate">
                         Resp: {goal.responsible?.name || "N/A"}
                       </p>
                     </div>
                     <div className="text-right shrink-0">
                       <span className="text-xs font-bold block">
                         {goal.progress}%
-                      </span>
-                      <span className="text-[10px] text-muted-foreground capitalize">
-                        {goal.frequency}
                       </span>
                     </div>
                   </div>
