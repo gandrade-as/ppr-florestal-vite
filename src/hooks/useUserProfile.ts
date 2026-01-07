@@ -1,6 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
-import { fecthUsersFromfirestore, fetchUserProfileFromFirestore, fetchUsersBySectorFromFirestore } from "@/services/userService";
+import { createUserInFirestore, fecthUsersFromfirestore, fetchUserProfileFromFirestore, fetchUsersBySectorFromFirestore } from "@/services/userService";
+import type { FirestoreUserProfile } from "@/types/user";
 // import api from "@/lib/api";
 // import type { UserProfile } from "@/types/user";
 
@@ -34,5 +35,20 @@ export function useSectorUsers(sectorId?: string) {
     queryFn: () => fetchUsersBySectorFromFirestore(sectorId!),
     enabled: !!sectorId,
     staleTime: 1000 * 60 * 30,
+  });
+}
+
+export function useCreateUser() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: Omit<FirestoreUserProfile, "uid">) =>
+      createUserInFirestore(data),
+    onSuccess: () => {
+      // Atualiza a lista de usuários automaticamente após criar
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      // Se necessário, invalida caches de setores específicos
+      queryClient.invalidateQueries({ queryKey: ["sector-users"] });
+    },
   });
 }

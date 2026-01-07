@@ -1,6 +1,6 @@
 import { db } from "@/lib/firebase/client";
 import { FirestoreUserProfileSchema, type FirestoreUserProfile, type HydratedUserProfile } from "@/types/user"
-import { collection, doc, getDoc, getDocs, query, QueryDocumentSnapshot, where, type FirestoreDataConverter, type SnapshotOptions } from "firebase/firestore"
+import { addDoc, collection, doc, getDoc, getDocs, query, QueryDocumentSnapshot, updateDoc, where, type FirestoreDataConverter, type SnapshotOptions } from "firebase/firestore"
 import { fetchSectorFromFirestore } from "./sectorService";
 
 export const userConverter: FirestoreDataConverter<FirestoreUserProfile> = {
@@ -24,6 +24,43 @@ export const userConverter: FirestoreDataConverter<FirestoreUserProfile> = {
 
     return result.data;
   },
+};
+
+const hydrateUser = async (
+  userData: FirestoreUserProfile,
+  id: string
+): Promise<HydratedUserProfile> => {
+
+  const sector = await fetchSectorFromFirestore(userData.sector_id);
+
+  if (!sector) {
+    throw new Error(`Setor vinculado (${userData.sector_id}) não encontrado.`);
+  }
+
+  const ids = userData.responsible_sectors_ids || [];
+
+  const sectors = await Promise.all(
+    ids.map(async (sector_id) => {
+      let sec = await fetchSectorFromFirestore(sector_id);
+
+      if (!sec) {
+        throw new Error(`Setor vinculado (${sector_id}) não encontrado.`);
+      }
+
+      return sec;
+    })
+  );
+
+  const { sector_id, ...userProps } = userData;
+
+  const finalUser: HydratedUserProfile = {
+    id: id,
+    ...userProps,
+    sector: sector,
+    responsible_sectors: sectors,
+  };
+
+  return finalUser;
 };
 
 export const fetchUserProfileFromFirestore = async (
@@ -77,17 +114,19 @@ export const fetchUserProfileFromFirestore = async (
   }
 };
 
-export const fecthUsersFromfirestore = async (): Promise<FirestoreUserProfile[]> => {
+export const fecthUsersFromfirestore = async (): Promise<HydratedUserProfile[]> => {
   try {
     const usersRef = collection(db, "users").withConverter(userConverter);
 
     const querySnapshot = await getDocs(usersRef);
 
-    var users: FirestoreUserProfile[] = [];
+    const promises = querySnapshot.docs.map((docSnap) =>
+      hydrateUser(docSnap.data(), docSnap.id)
+    );
 
-    for (const docSnap of querySnapshot.docs) {
-      users.push(docSnap.data());
-    }
+    // 2. O Promise.all espera todas as promises serem resolvidas em paralelo
+    // e retorna um array com os resultados na mesma ordem.
+    const users: HydratedUserProfile[] = await Promise.all(promises);
 
     return users;
   } catch (error) {
@@ -118,3 +157,28 @@ export const fetchUsersBySectorFromFirestore = async (
     throw error;
   }
 }
+
+export const createUserInFirestore = async (
+  userData: Omit<FirestoreUserProfile, "uid">
+): Promise<void> => {
+  try {
+    const usersRef = collection(db, "users");
+
+    // 1. Cria o documento e gera o ID automaticamente
+    const docRef = await addDoc(usersRef, {
+      ...userData,
+      uid: "temp", // Placeholder temporário
+    });
+
+    // 2. Atualiza o campo 'uid' com o ID gerado pelo Firestore
+    // Isso garante consistência se sua aplicação usa o campo 'uid' interno
+    await updateDoc(docRef, {
+      uid: docRef.id,
+    });
+
+    console.log(`Usuário criado com ID: ${docRef.id}`);
+  } catch (error) {
+    console.error("Erro ao criar usuário:", error);
+    throw error;
+  }
+};

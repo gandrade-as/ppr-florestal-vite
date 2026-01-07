@@ -190,6 +190,13 @@ export default function DashboardLayout() {
               icon={Users}
               label="Metas do Setor"
             />
+            <RoleGuard allowedRoles={["superuser", "admin"]}>
+              <NavItem
+                to="/admin/users"
+                icon={Users} // Importe Users de lucide-react
+                label="Usuários"
+              />
+            </RoleGuard>
           </>
         )}
 

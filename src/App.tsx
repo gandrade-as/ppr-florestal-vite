@@ -15,6 +15,7 @@ import EvaluationPage from "./pages/evaluation/EvaluationPage";
 import CreatedGoalsPage from "./pages/goals/CreatedGoals";
 import MyGoalsPage from "./pages/goals/MyGoals";
 import LaunchableGoalsPage from "./pages/goals/LaunchableGoals";
+import UsersManagementPage from "./pages/admin/UsersManagement";
 
 // 1. Instância do Cliente (Configuração Otimizada)
 const queryClient = new QueryClient({
@@ -83,6 +84,18 @@ export default function App() {
                   <Route
                     path="/sector/:sectorId/goals"
                     element={<SectorGoalsPage />}
+                  />
+                </Route>
+                <Route
+                  element={
+                    <ProtectedRoute
+                      allowedRoles={["superuser", "admin"]}
+                    />
+                  }
+                >
+                  <Route
+                    path="/admin/users"
+                    element={<UsersManagementPage />}
                   />
                 </Route>
               </Route>

@@ -181,33 +181,27 @@ export default function DashboardPage() {
 
         {/* ÁREA DE FILTROS */}
         <div className="flex flex-col sm:flex-row items-center gap-2 w-full xl:w-auto">
-          {/* 1. SELETOR DE SETOR (Só aparece se tiver responsible_sectors) */}
-          {hasResponsibleSectors && (
-            <div className="w-full sm:w-60">
-              <Select
-                value={selectedSectorId}
-                onValueChange={setSelectedSectorId}
-                disabled={isLoading}
-              >
-                <SelectTrigger className="bg-background h-10 border-dashed border-slate-300">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Briefcase className="h-4 w-4" />
-                    <SelectValue placeholder="Setor" />
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  {availableSectors.map((sector) => (
-                    <SelectItem key={sector.id} value={sector.id}>
-                      {sector.name} ({sector.acronym})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
 
-          {/* 2. SELETORES DE DATA */}
           <div className="flex w-full sm:w-auto gap-2">
+            <Select
+              value={selectedSectorId}
+              onValueChange={setSelectedSectorId}
+              disabled={isLoading}
+            >
+              <SelectTrigger className="bg-background h-10 border-dashed border-slate-300 ">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Briefcase className="h-4 w-4" />
+                  <SelectValue placeholder="Setor" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {availableSectors.map((sector) => (
+                  <SelectItem key={sector.id} value={sector.id}>
+                    {sector.name} ({sector.acronym})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select
               value={selectedYear}
               onValueChange={setSelectedYear}
