@@ -21,7 +21,8 @@ interface GoalPageTemplateProps {
   isLoading: boolean;
   isError: boolean;
   emptyMessage?: string;
-  headerAction?: React.ReactNode;
+  headerAction?: React.ReactNode; // Botões de ação (direita)
+  extraFilters?: React.ReactNode; // FILTROS EXTRAS (esquerda/início)
   onGoalClick?: (goal: HydratedGoal) => void;
 }
 
@@ -34,17 +35,16 @@ export function GoalPageTemplate({
   isError,
   emptyMessage = "Nenhuma meta encontrada.",
   headerAction,
+  extraFilters, // Recebendo a nova prop
   onGoalClick,
 }: GoalPageTemplateProps) {
-  // 1. Lógica de Padrões Inteligentes
+  // ... (Lógica de estados e filtros mantém-se igual)
   const currentSemester = new Date().getMonth() < 6 ? "01" : "02";
-
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedYear, setSelectedYear] = useState<string>("");
   const [selectedSemester, setSelectedSemester] =
     useState<string>(currentSemester);
 
-  // 2. Extrair anos únicos
   const availableYears = useMemo(() => {
     if (!goals) return [];
     const years = new Set<string>();
@@ -57,17 +57,15 @@ export function GoalPageTemplate({
     return Array.from(years).sort().reverse();
   }, [goals]);
 
-  // 3. Auto-seleção do ano mais recente
   useEffect(() => {
     if (availableYears.length > 0) {
-      // Se não houver seleção ou a seleção atual não existir na lista
       if (!selectedYear || !availableYears.includes(selectedYear)) {
         setSelectedYear(availableYears[0]);
       }
     }
   }, [availableYears, selectedYear]);
 
-  // Lógica de Loading / Erro
+  // Lógica de renderização de loading/erro...
   if (isLoading) return <GoalsSkeleton />;
 
   if (isError) {
@@ -78,28 +76,21 @@ export function GoalPageTemplate({
     );
   }
 
-  // 4. Filtragem Estrita (Sem "All")
+  // Filtragem (mantém igual)
   const filteredGoals =
     goals?.filter((goal) => {
       const [refYear, refSemester] = (goal.reference || "").split("/");
-
-      // Se o filtro de ano/semestre ainda não estiver definido (loading inicial), oculta ou mostra tudo?
-      // Aqui optamos por consistência: se tem filtro, usa. Se não tem ano selecionado, não mostra nada (ou espera).
       if (!selectedYear) return false;
-
       const matchesSearch = goal.title
         .toLowerCase()
         .includes(searchTerm.toLowerCase());
-
       const matchesYear = refYear === selectedYear;
       const matchesSemester = refSemester === selectedSemester;
-
       return matchesSearch && matchesYear && matchesSemester;
     }) || [];
 
   const hasGoals = goals && goals.length > 0;
 
-  // 5. Função para "Resetar" filtros (Volta ao padrão atual/recente)
   const resetFilters = () => {
     setSearchTerm("");
     setSelectedSemester(currentSemester);
@@ -108,7 +99,6 @@ export function GoalPageTemplate({
     }
   };
 
-  // Verifica se o estado atual é diferente do "padrão" para mostrar o botão de limpar
   const isDefaultView =
     searchTerm === "" &&
     selectedSemester === currentSemester &&
@@ -127,6 +117,9 @@ export function GoalPageTemplate({
         </div>
 
         <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
+          {/* AQUI: Renderiza os filtros extras ANTES dos filtros de data */}
+          {extraFilters}
+
           {/* Dropdown de ANO */}
           <Select
             value={selectedYear}
@@ -173,7 +166,7 @@ export function GoalPageTemplate({
             />
           </div>
 
-          {/* Botão Limpar Filtros (Resetar) */}
+          {/* Botão Limpar Filtros */}
           {!isDefaultView && (
             <Button
               variant="ghost"
@@ -186,12 +179,12 @@ export function GoalPageTemplate({
             </Button>
           )}
 
-          {/* Ação Extra (Botão Nova Meta) */}
+          {/* Ação Extra (Botões como "Nova Meta") - Fica no final */}
           {headerAction}
         </div>
       </div>
 
-      {/* Estados de Lista */}
+      {/* Estados de Lista (mantém igual) */}
       {!hasGoals ? (
         <EmptyState message={emptyMessage} icon={Icon} />
       ) : filteredGoals.length === 0 ? (
