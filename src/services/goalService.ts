@@ -7,6 +7,7 @@ import {
   getDocs,
   query,
   QueryDocumentSnapshot,
+  updateDoc,
   where,
   type FirestoreDataConverter,
   type SnapshotOptions,
@@ -176,7 +177,7 @@ export const fetchPendingGoalsFromFirestore = async (): Promise<HydratedGoal[]> 
   try {
     const goalsRef = collection(db, "goals").withConverter(goalConverter);
 
-    const q = query(goalsRef, where("status", "==", "in_progress"));
+    const q = query(goalsRef, where("status", "in", ["pending", "in_progress"]));
 
     const querySnapshot = await getDocs(q);
 
@@ -225,6 +226,24 @@ export const createGoalInFirestore = async (
     return docRef.id;
   } catch (error) {
     console.error("Erro no createGoalInFirestore:", error);
+    throw error;
+  }
+};
+
+export const updateGoalInFirestore = async (
+  goalId: string,
+  updateData: {
+    description?: string;
+    levels?: { targetValue: string | number; percentage: number }[];
+  }
+): Promise<void> => {
+  try {
+    const goalRef = doc(db, "goals", goalId);
+    // Atualiza apenas os campos passados
+    await updateDoc(goalRef, updateData);
+    console.log(`Meta ${goalId} atualizada com sucesso.`);
+  } catch (error) {
+    console.error("Erro ao atualizar meta:", error);
     throw error;
   }
 };

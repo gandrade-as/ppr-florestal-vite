@@ -12,13 +12,16 @@ import {
   ThumbsUp,
   ThumbsDown,
   Plus,
+  Pencil,
+  Trash2,
+  Target,
 } from "lucide-react";
 import { format } from "date-fns";
 
 // Hooks e Tipos
 import { useUpdateLaunch, useCreateLaunch } from "@/hooks/useLaunches";
-import { useGoal } from "@/hooks/useGoals";
-import { useUserProfile } from "@/hooks/useUserProfile"; // Importação do hook de perfil
+import { useGoal, useUpdateGoal } from "@/hooks/useGoals"; // Certifique-se de ter criado o useUpdateGoal no hook
+import { useUserProfile } from "@/hooks/useUserProfile";
 import { getMaxLaunches, type HydratedGoal } from "@/types/goal";
 import type { FirestoreLaunch } from "@/types/launch";
 
@@ -43,6 +46,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 export type SheetMode = "readonly" | "launcher" | "evaluator";
@@ -79,9 +83,7 @@ export function GoalDetailsSheet({
 
   if (!goal) return null;
 
-  // 3. Lógica de "Modo Efetivo" (Correção do Problema)
-  // Se o usuário logado for o lançador da meta, forçamos o modo "launcher",
-  // a menos que estejamos explicitamente na tela de auditoria ("evaluator").
+  // 3. Lógica de "Modo Efetivo"
   const isUserTheLauncher = userProfile?.id === goal.launcher.id;
 
   const effectiveMode: SheetMode =
@@ -102,13 +104,13 @@ export function GoalDetailsSheet({
           <LaunchDetails
             launch={selectedLaunch}
             goal={goal}
-            mode={effectiveMode} // Usamos o modo efetivo aqui
+            mode={effectiveMode}
             onBack={() => setSelectedLaunchId(null)}
           />
         ) : (
           <GoalOverview
             goal={goal}
-            mode={effectiveMode} // E aqui
+            mode={effectiveMode}
             onSelectLaunch={(id) => setSelectedLaunchId(id)}
             onCreateNew={() => setIsCreating(true)}
           />
@@ -119,7 +121,7 @@ export function GoalDetailsSheet({
 }
 
 // ==========================================
-// 1. VIEW: LISTA DE LANÇAMENTOS (Overview)
+// 1. VIEW: LISTA DE LANÇAMENTOS (Overview) + EDIÇÃO
 // ==========================================
 
 function GoalOverview({
@@ -133,42 +135,240 @@ function GoalOverview({
   onSelectLaunch: (id: string) => void;
   onCreateNew: () => void;
 }) {
+  // Hook de atualização da meta
+  const { mutate: updateGoal, isPending: isUpdatingGoal } = useUpdateGoal();
+
+  // Estados de controle de edição
+  const [isEditingMeta, setIsEditingMeta] = useState(false);
+  const [description, setDescription] = useState(goal.description || "");
+  const [levels, setLevels] = useState(goal.levels || []);
+
+  // Sincroniza estados locais quando a meta muda ou sai do modo de edição
+  useEffect(() => {
+    if (!isEditingMeta) {
+      setDescription(goal.description || "");
+      setLevels(goal.levels || []);
+    }
+  }, [goal, isEditingMeta]);
+
+  // Handler de Salvar
+  const handleSaveMeta = () => {
+    updateGoal(
+      {
+        goalId: goal.id,
+        data: {
+          description,
+          levels,
+        },
+      },
+      {
+        onSuccess: () => setIsEditingMeta(false),
+      }
+    );
+  };
+
+  // Handlers de Manipulação de Níveis
+  const handleLevelChange = (
+    index: number,
+    field: "targetValue" | "percentage",
+    value: string
+  ) => {
+    const newLevels = [...levels];
+    if (field === "percentage") {
+      newLevels[index] = { ...newLevels[index], percentage: Number(value) };
+    } else {
+      newLevels[index] = {
+        ...newLevels[index],
+        targetValue: goal.input_type === "numeric" ? Number(value) : value,
+      };
+    }
+    setLevels(newLevels);
+  };
+
+  const addLevel = () => {
+    setLevels([...levels, { targetValue: "", percentage: 0 }]);
+  };
+
+  const removeLevel = (index: number) => {
+    setLevels(levels.filter((_, i) => i !== index));
+  };
+
+  // Dados de Lançamentos
   const sortedLaunches = [...(goal.launches || [])].sort(
     (a, b) => b.seq - a.seq
   );
-
-  // Lógica de limite de lançamentos
   const maxAllowed = getMaxLaunches(goal.frequency);
   const currentCount = goal.launches?.length || 0;
   const canCreateMore = currentCount < maxAllowed;
+
+  // Permissão de Edição da Meta: Apenas Avaliador e Status Pendente
+  const canEditMeta = mode === "evaluator" && goal.status === "pending";
 
   return (
     <>
       <SheetHeader className="px-6 py-6 bg-background border-b shadow-sm shrink-0">
         <div className="flex justify-between items-start gap-4">
-          <div>
-            <Badge variant="secondary" className="mb-2 uppercase">
-              {goal.frequency}
-            </Badge>
+          <div className="w-full">
+            <div className="flex items-center justify-between">
+              <Badge variant="secondary" className="mb-2 uppercase">
+                {goal.frequency}
+              </Badge>
+
+              {canEditMeta && !isEditingMeta && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsEditingMeta(true)}
+                  className="h-6 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                >
+                  <Pencil className="w-3 h-3 mr-1" /> Editar Meta
+                </Button>
+              )}
+            </div>
+
             <SheetTitle className="text-2xl font-bold text-primary">
               {goal.title}
             </SheetTitle>
-            <SheetDescription className="mt-1 line-clamp-2">
-              {goal.description}
-            </SheetDescription>
+
+            {/* Descrição: Modo Edição vs Leitura */}
+            {isEditingMeta ? (
+              <div className="mt-4 space-y-2 animate-in fade-in">
+                <Label
+                  htmlFor="desc-edit"
+                  className="text-xs text-muted-foreground"
+                >
+                  Descrição
+                </Label>
+                <Textarea
+                  id="desc-edit"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="bg-white min-h-20"
+                />
+              </div>
+            ) : (
+              <SheetDescription className="mt-1 line-clamp-3">
+                {goal.description}
+              </SheetDescription>
+            )}
           </div>
-          <div className="text-right shrink-0">
-            <div className="text-2xl font-bold text-blue-600">
-              {goal.progress}%
+
+          {!isEditingMeta && (
+            <div className="text-right shrink-0">
+              <div className="text-2xl font-bold text-blue-600">
+                {goal.progress}%
+              </div>
+              <p className="text-[10px] text-muted-foreground font-bold uppercase">
+                Progresso
+              </p>
             </div>
-            <p className="text-[10px] text-muted-foreground font-bold uppercase">
-              Progresso
-            </p>
-          </div>
+          )}
         </div>
       </SheetHeader>
 
       <ScrollArea className="flex-1 px-6 py-6 overflow-y-auto">
+        {/* --- SEÇÃO DE NÍVEIS (EDITÁVEL) --- */}
+        <div className="mb-8 border-b pb-6">
+          <h3 className="font-semibold text-sm flex items-center gap-2 text-slate-800 mb-4">
+            <Target className="h-4 w-4 text-muted-foreground" />
+            Níveis de Atingimento (Regra)
+          </h3>
+
+          {isEditingMeta ? (
+            <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+              {levels.map((lvl, idx) => (
+                <div key={idx} className="flex gap-2 items-center">
+                  <div className="flex-1">
+                    <Input
+                      placeholder={
+                        goal.input_type === "numeric" ? "Valor" : "Opção"
+                      }
+                      type={goal.input_type === "numeric" ? "number" : "text"}
+                      value={lvl.targetValue}
+                      onChange={(e) =>
+                        handleLevelChange(idx, "targetValue", e.target.value)
+                      }
+                      className="h-9 text-sm bg-white"
+                    />
+                  </div>
+                  <div className="w-24">
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        value={lvl.percentage}
+                        onChange={(e) =>
+                          handleLevelChange(idx, "percentage", e.target.value)
+                        }
+                        className="h-9 text-sm pr-6 text-center bg-white"
+                      />
+                      <span className="absolute right-2 top-2 text-xs text-muted-foreground">
+                        %
+                      </span>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 text-red-500 hover:bg-red-50 hover:text-red-600"
+                    onClick={() => removeLevel(idx)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={addLevel}
+                className="w-full border-dashed mt-2 text-xs h-9"
+              >
+                <Plus className="h-3 w-3 mr-1" /> Adicionar Nível
+              </Button>
+
+              <div className="flex gap-2 mt-6 pt-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleSaveMeta}
+                  disabled={isUpdatingGoal}
+                  className="flex-1 font-bold"
+                >
+                  {isUpdatingGoal ? "Salvando..." : "Salvar Alterações"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditingMeta(false)}
+                  disabled={isUpdatingGoal}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          ) : (
+            // Modo Visualização
+            <div className="flex flex-wrap gap-2">
+              {[...goal.levels]
+                .sort((a, b) => a.percentage - b.percentage)
+                .map((lvl, i) => (
+                  <div
+                    key={i}
+                    className="flex flex-col items-center bg-slate-50 border rounded-md px-3 py-2 min-w-20"
+                  >
+                    <span className="text-sm font-bold text-slate-700">
+                      {lvl.targetValue}
+                    </span>
+                    <span className="text-[10px] font-medium text-muted-foreground bg-slate-200/50 px-1.5 rounded mt-1">
+                      {lvl.percentage}%
+                    </span>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+
+        {/* --- SEÇÃO DE LANÇAMENTOS --- */}
         <div className="flex items-center justify-between mb-6">
           <h3 className="font-semibold text-lg flex items-center gap-2 text-slate-800">
             <FileText className="h-5 w-5 text-muted-foreground" />
@@ -206,6 +406,10 @@ function GoalOverview({
     </>
   );
 }
+
+// ==========================================
+// 2. VIEW: CARD DE LANÇAMENTO (Visualização Individual)
+// ==========================================
 
 function LaunchCard({
   launch,
@@ -276,7 +480,7 @@ function LaunchCard({
 }
 
 // ==========================================
-// 2. VIEW: FORMULÁRIO DE CRIAÇÃO
+// 3. VIEW: FORMULÁRIO DE CRIAÇÃO DE LANÇAMENTO
 // ==========================================
 
 function CreateLaunchForm({
@@ -383,7 +587,7 @@ function CreateLaunchForm({
 }
 
 // ==========================================
-// 3. VIEW: DETALHES E EDIÇÃO (Linear)
+// 4. VIEW: DETALHES E EDIÇÃO DE LANÇAMENTO
 // ==========================================
 
 function LaunchDetails({

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 // import api from "@/lib/api";
 import type { FirestoreGoal } from "@/types/goal";
 import { useAuth } from "@/context/AuthContext";
-import { createGoalInFirestore, fetchGoalFromFirestore, fetchGoalsByCreatorFromFirestore, fetchGoalsByLauncherFromFirestore, fetchGoalsByResponsibleFromFirestore, fetchGoalsBySectorFromFirestore, fetchPendingGoalsFromFirestore } from "@/services/goalService";
+import { createGoalInFirestore, fetchGoalFromFirestore, fetchGoalsByCreatorFromFirestore, fetchGoalsByLauncherFromFirestore, fetchGoalsByResponsibleFromFirestore, fetchGoalsBySectorFromFirestore, fetchPendingGoalsFromFirestore, updateGoalInFirestore } from "@/services/goalService";
 
 // const fetchUserGoals = async (uid: string): Promise<Goal[]> => {
 //   const { data } = await api.get(`/goals/${uid}`);
@@ -107,6 +107,26 @@ export function useCreateGoal() {
       queryClient.invalidateQueries({ queryKey: ["my-goals"] });
       queryClient.invalidateQueries({ queryKey: ["sector-goals"] });
       queryClient.invalidateQueries({ queryKey: ["launcher-goals"] });
+    },
+  });
+}
+
+export function useUpdateGoal() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      goalId,
+      data,
+    }: {
+      goalId: string;
+      data: { description?: string; levels?: any[] };
+    }) => updateGoalInFirestore(goalId, data),
+    onSuccess: (_, variables) => {
+      // Invalida a meta específica e as listas para refletir as mudanças
+      queryClient.invalidateQueries({ queryKey: ["goal", variables.goalId] });
+      queryClient.invalidateQueries({ queryKey: ["pending-goals"] });
+      queryClient.invalidateQueries({ queryKey: ["sector-goals"] });
     },
   });
 }

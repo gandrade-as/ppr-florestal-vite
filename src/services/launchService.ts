@@ -156,6 +156,17 @@ export const createLaunchInFirestore = async (
 
     const goalData = goalSnap.data();
     const currentLaunches = [...(goalData.launches || [])];
+
+    // --- NOVA VALIDAÇÃO DE LIMITE ---
+    const maxLaunches = getMaxLaunches(goalData.frequency);
+
+    if (currentLaunches.length >= maxLaunches) {
+      throw new Error(
+        `Limite de lançamentos (${maxLaunches}) atingido para a frequência ${goalData.frequency}.`
+      );
+    }
+    // --------------------------------
+
     const newId = Math.random().toString(36).substr(2, 9);
 
     const newLaunch: FirestoreLaunch = {
@@ -182,7 +193,6 @@ export const createLaunchInFirestore = async (
     );
 
     // 2. Determinar novo Status da Meta
-    // Se era 'pending' e adicionou um lançamento, vira 'in_progress' automaticamente
     const newStatus = determineNewGoalStatus(
       goalData.status,
       currentLaunches,
@@ -193,7 +203,7 @@ export const createLaunchInFirestore = async (
       launches: currentLaunches,
       progress: newProgress,
       ppr_attained: newPprAttained,
-      status: newStatus, // Atualiza o status
+      status: newStatus,
     });
 
     console.log(
@@ -201,7 +211,7 @@ export const createLaunchInFirestore = async (
     );
   } catch (error) {
     console.error("Erro ao criar lançamento:", error);
-    throw error;
+    throw error; // Repassa o erro para ser tratado na UI (ex: toast de erro)
   }
 };
 

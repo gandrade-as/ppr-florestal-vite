@@ -12,7 +12,7 @@ import {
   Users,
   PenTool,
   Scale,
-  Briefcase,
+  PlusCircle,
 } from "lucide-react";
 import { auth } from "@/lib/firebase/client"; // Ajuste o caminho se necessário (ex: @/lib/firebase/client)
 
@@ -162,6 +162,11 @@ export default function DashboardLayout() {
             />
             <RoleGuard allowedRoles={["superuser", "avaliador"]}>
               <NavItem to="/auditoria" icon={Scale} label="Auditoria" />
+              <NavItem
+                to="/created-goals"
+                icon={PlusCircle}
+                label="Criadas por Mim"
+              />
             </RoleGuard>
             {/* <NavItem to="/perfil" icon={User} label="Perfil" /> */}
           </nav>
@@ -184,11 +189,6 @@ export default function DashboardLayout() {
               to={`/sector/${profile.sector.id}/goals`}
               icon={Users}
               label="Metas do Setor"
-            />
-            <NavItem
-              to="/created-goals"
-              icon={Briefcase}
-              label="Criadas por Mim"
             />
           </>
         )}
